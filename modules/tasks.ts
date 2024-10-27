@@ -73,6 +73,36 @@ export const send_answer = async (answer:any, token = tasks_config.token) => {
     }
 }
 
+// {
+//     "task": "identyfikator zadania",
+//     "apikey": "Twój klucz API",
+//     "answer": "tutaj Twoja odpowiedź"
+// }
+
+export const send_answer2 = async (task:String, answer:any, token = tasks_config.apiKey) => {
+    try {
+        const response = await fetch(`${tasks_config.url}verify`, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify({
+                task: task,
+                apikey: token,
+                answer: answer
+            })
+        })
+
+        const data = await response.json();
+        console.log("send_answer data: ", data)
+        return data;
+    } catch (error) {
+        console.error("Error when sending data:", error);
+        return null;
+    }
+}
+
+
 export const get_task_data_using_question = async (token = tasks_config.token, question: string) => {
     try {
         const formData = new FormData();

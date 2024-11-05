@@ -4,7 +4,8 @@
   "type": "module",
   "scripts": {
     "00": "bun 00_poligon/00.ts",
-    "01": "bun 01_anty_captcha/01.ts"
+    "01": "bun 01_anty_captcha/01.ts",
+    "02": "bun 02_verify_ready/02.ts"
   },
   "devDependencies": {
     "bun-types": "latest"

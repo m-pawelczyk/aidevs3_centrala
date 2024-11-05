@@ -20,7 +20,7 @@ async function extractHumanQuestion(url: string): Promise<string> {
     }
 }
 
-async function getAnswerFromAI(content: string) {
+async function getAnswerFromAI(content: string): Promise<string> {
     const completion = await openai.chat.completions.create({
         messages: [
             { 

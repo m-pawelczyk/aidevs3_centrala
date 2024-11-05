@@ -3,7 +3,8 @@
   "module": "index.ts",
   "type": "module",
   "scripts": {
-    "00": "bun 00_poligon/00.ts"
+    "00": "bun 00_poligon/00.ts",
+    "01": "bun 01_anty_captcha/01.ts"
   },
   "devDependencies": {
     "bun-types": "latest"

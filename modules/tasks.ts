@@ -4,6 +4,12 @@ const tasks_config = {
     url : process.env.TASKS_URL,
 }
 
+const centrala_config = {
+    apiKey : process.env.TASKS_API_KEY,
+    token : "",
+    url : process.env.CENTRALA_URL,
+}
+
 export const get_token = async (task_name:string) => {
     console.log(tasks_config);
     try {
@@ -82,6 +88,29 @@ export const send_answer = async (answer:any, token = tasks_config.token) => {
 export const send_answer2 = async (task:String, answer:any, token = tasks_config.apiKey) => {
     try {
         const response = await fetch(`${tasks_config.url}verify`, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify({
+                task: task,
+                apikey: token,
+                answer: answer
+            })
+        })
+
+        const data = await response.json();
+        console.log("send_answer data: ", data)
+        return data;
+    } catch (error) {
+        console.error("Error when sending data:", error);
+        return null;
+    }
+}
+
+export const send_answer3 = async (task:String, answer:any, token = tasks_config.apiKey) => {
+    try {
+        const response = await fetch(`${centrala_config.url}report`, {
             method: "POST",
             headers: {
                 "Content-Type": "application/json"

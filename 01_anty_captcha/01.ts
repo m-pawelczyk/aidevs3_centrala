@@ -35,7 +35,11 @@ async function getAnswerFromAI(content: string): Promise<string> {
         model: "gpt-4o",
     });
 
-    return completion.choices[0].message.content;
+    const answer = completion.choices[0].message.content;
+    if (!answer) {
+        throw new Error("AI response content is null or undefined");
+    }
+    return answer;
 }
 
 async function verifyAndSendAnswer(answer: string, url: string) {

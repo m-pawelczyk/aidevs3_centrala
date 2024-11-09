@@ -13,6 +13,13 @@ interface LlamaResponse {
     error?: string;
 }
 
+interface OllamaApiResponse {
+    model: string;
+    created_at: string;
+    response: string;
+    done: boolean;
+}
+
 async function callLocalLlama(url: string, userMessage: string = ""): Promise<LlamaResponse> {
 
     const systemMessage = `From other system you are getting content with our users personal data. 
@@ -69,7 +76,7 @@ async function callLocalLlama(url: string, userMessage: string = ""): Promise<Ll
             throw new Error(`HTTP error! status: ${response.status}`);
         }
 
-        const data = await response.json();
+        const data = await response.json() as OllamaApiResponse;
         return {
             content: data.response
         };

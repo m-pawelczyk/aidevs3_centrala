@@ -6,7 +6,8 @@
     "00": "bun 00_poligon/00.ts",
     "01": "bun 01_anty_captcha/01.ts",
     "02": "bun 02_verify_ready/02.ts",
-    "03": "bun 03_plik_kalibracyjny/03.ts"
+    "03": "bun 03_plik_kalibracyjny/03.ts",
+    "05": "bun 05_cenzura/05.ts"
   },
   "devDependencies": {
     "bun-types": "latest"

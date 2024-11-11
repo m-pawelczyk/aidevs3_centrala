@@ -7,7 +7,8 @@
     "01": "bun 01_anty_captcha/01.ts",
     "02": "bun 02_verify_ready/02.ts",
     "03": "bun 03_plik_kalibracyjny/03.ts",
-    "05": "bun 05_cenzura/05.ts"
+    "05": "bun 05_cenzura/05.ts",
+    "06": "bun 06_mp3/06.ts"
   },
   "devDependencies": {
     "bun-types": "latest"
@@ -23,6 +24,7 @@
     "openai": "^4.14.0",
     "serpapi": "^2.0.0",
     "tiktoken": "^1.0.10",
-    "uuid": "^9.0.1"
+    "uuid": "^9.0.1",
+    "groq-sdk": "^0.7.0"
   }
 }

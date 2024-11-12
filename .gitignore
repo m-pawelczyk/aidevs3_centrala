@@ -185,3 +185,7 @@ downloads
 *.bak
 *.code-workspace
 optimized*.json
+
+# big files
+06_mp3/recordings/
+06_mp3/transcriptions/

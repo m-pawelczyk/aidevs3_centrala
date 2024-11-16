@@ -1,9 +1,23 @@
 import { send_answer3 } from "../modules/tasks"
 import OpenAI from "openai";
+import Groq from "groq-sdk";
 import fs from 'fs';
 import path from 'path';
 
 const openai = new OpenAI();
+let groq: Groq | undefined;
+
+async function readFileContent(filePath: string): Promise<string> {
+    return new Promise((resolve, reject) => {
+        fs.readFile(filePath, 'utf-8', (err, data) => {
+            if (err) {
+                reject(err);
+            } else {
+                resolve(data);
+            }
+        });
+    });
+}
 
 function listFilesByExtension(directoryPath: string): Record<string, string[]> {
     const files = fs.readdirSync(directoryPath);
@@ -15,7 +29,9 @@ function listFilesByExtension(directoryPath: string): Record<string, string[]> {
             if (!result[extension]) {
                 result[extension] = [];
             }
-            result[extension].push(file);
+            // Include the directory path with the filename
+            const fullPath = path.join(directoryPath, file);
+            result[extension].push(fullPath);
         }
     });
 
@@ -32,16 +48,36 @@ interface ProcessingResult {
     [key: string]: any;
 }
 
-async function mp3ToCategory(filename: string): Promise<any> {
-    // Implementation to be added
-    return { [filename]: "mp3 processed result" };
+async function mp3ToCategory(filePath: string): Promise<any> {
+    const transcription = await transcribeAudioFile(filePath);
+    const category = txtToCategory(filePath, transcription);
+    return { [filePath]: category };
 }
 
+async function transcribeAudioFile(filePath: string) {
+    try {
+        const response = await transcribeGroq(filePath);
+        console.log(`Transcribed ${filePath} successfully`);
+        return response;
+    } catch (error) {
+        console.error(`Error processing ${filePath}:`, error);
+        throw error;
+    }
+}
 
+async function transcribeGroq(filePath: string): Promise<string> {
+    if (!groq) throw new Error('Groq client not initialized');
 
-async function txtToCategory(filename:string, content: string): Promise<any> {
+    const fileStream = fs.createReadStream(filePath);
+    const transcription = await groq.audio.transcriptions.create({
+      file: fileStream,
+      language: 'pl',
+      model: 'whisper-large-v3',
+    });
+    return transcription.text;
+}
 
-    
+async function txtToCategory(filePath: string, content: string): Promise<any> {
     const systemMessage = `
         You are advanced researcher which is able to read content received from User and assign them 
         to categories. Your task is to assing content to categories: 
@@ -75,16 +111,15 @@ async function txtToCategory(filename:string, content: string): Promise<any> {
                 content: content
             }
         ],
-        model: "gpt-4o",
+        model: "gpt-4",
     });
 
-    // Implementation to be added
-    return { [filename]: completion.choices[0].message.content };
+    return { [filePath]: completion.choices[0].message.content };
 }
 
-async function pngToCategory(filename: string): Promise<any> {
+async function pngToCategory(filePath: string): Promise<any> {
     // Implementation to be added
-    return { [filename]: "png processed result" };
+    return { [filePath]: "png processed result" };
 }
 
 async function processFiles(input: Record<string, string[]>): Promise<ProcessingResult> {
@@ -116,9 +151,11 @@ async function processFiles(input: Record<string, string[]>): Promise<Processing
     // Process TXT files
     if (input.txt) {
         const txtPromises = input.txt.map(file => 
-            txtToCategory(file).then(result => {
-                Object.assign(results, result);
-            })
+            readFileContent(file)
+                .then(content => txtToCategory(file, content))
+                .then(result => {
+                    Object.assign(results, result);
+                })
         );
         promises.push(...txtPromises);
     }
@@ -132,11 +169,15 @@ async function processFiles(input: Record<string, string[]>): Promise<Processing
 async function main() {
     const url = process.env.CENTRALA_URL;
     const taskKey = process.env.TASKS_API_KEY;
-    const ollamaUrl = process.env.LOCAL_OLLAMA_URL;
+    const groqApiKey = process.env.GROQ_API_KEY;
 
-    if (!url || !taskKey || !ollamaUrl) {
+    if (!url || !taskKey || !groqApiKey) {
         throw new Error('Environment variables are not set');
     }
+
+    groq = new Groq({
+        apiKey: groqApiKey
+    });
 
     const groupedFiles = listFilesByExtension(path.join(__dirname, 'documents'));
     console.log('Files grouped by extension:', JSON.stringify(groupedFiles, null, 2));

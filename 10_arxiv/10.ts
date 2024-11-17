@@ -30,7 +30,7 @@ function askGpt(knowledge: string, question: string): Promise<string> {
     return openai.chat.completions.create({
         model: "gpt-4o",
         messages: messages,
-        max_tokens: 1024,
+        max_tokens: 16384,
         response_format: { type: "text" }
     }).then(completion => completion.choices[0].message.content || '')
     .catch(error => {

@@ -137,6 +137,28 @@ async function downloadHtml(url: string): Promise<string> {
     }
 }
 
+export function processContent(jsonData: Record<string, string>, markdownContent: string): string {
+    let processedContent = markdownContent;
+
+    for (const [key, value] of Object.entries(jsonData)) {
+        if (processedContent.includes(key)) {
+            let replacementValue = value;
+
+            // Add appropriate tags based on file type in the key
+            if (key.toLowerCase().includes('.mp3')) {
+                replacementValue = `<opis pliku audio>${value}</opis pliku audio>`;
+            } else if (key.toLowerCase().includes('.png')) {
+                replacementValue = `<opis obrazka>${value}</opis obrazka>`;
+            }
+
+            // Replace the key with the processed value
+            processedContent = processedContent.replace(key, replacementValue);
+        }
+    }
+
+    return processedContent;
+}
+
 async function main() {
     // Get URL from environment variable and validate
     const url = process.env.CENTRALA_URL;
@@ -160,6 +182,10 @@ async function main() {
     
     const describedattachments = await processMediaJson(url + "dane/", attachments)
     console.log("Attachments found:", describedattachments);
+
+    // Process the content with the new function
+    const finalContent = processContent(describedattachments, mdPage);
+    console.log("Final processed content:", finalContent);
 }
 
 main().catch(console.error);

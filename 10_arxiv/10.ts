@@ -1,3 +1,4 @@
+import { send_answer3 } from "../modules/tasks"
 import OpenAI, { toFile } from 'openai';
 import Groq from "groq-sdk";
 import type { ChatCompletionMessageParam } from "openai/resources/chat/completions";
@@ -9,7 +10,8 @@ const openai = new OpenAI();
 let groq: Groq | undefined;
 
 function askGpt(knowledge: string, question: string): Promise<string> {
-    const systemMsg = `Respond to user question using your context. Respond shortly in one sentence.
+    const systemMsg = `Respond to user question using your context. Respond shortly in one sentence, 
+    but inslude as much detail as possible. Use specific names not general ones.
 
     <context>
     ${knowledge}
@@ -28,7 +30,7 @@ function askGpt(knowledge: string, question: string): Promise<string> {
     ];
     
     return openai.chat.completions.create({
-        model: "gpt-4o",
+        model: "gpt-4o-mini",
         messages: messages,
         max_tokens: 16384,
         response_format: { type: "text" }
@@ -117,7 +119,7 @@ async function askGptVision(visionMessage: any[]) : Promise<string> {
     ];
     
     return openai.chat.completions.create({
-        model: "gpt-4o",
+        model: "gpt-4o-mini",
         messages: messages,
         max_tokens: 1024,
         response_format: { type: "text" }
@@ -247,17 +249,19 @@ async function main() {
     console.log("Questions: ", questions);
     
     const attachments = extractMarkdownAttachments(mdPage);
-    console.log("Attachments found:", attachments);
+    // console.log("Attachments found:", attachments);
     
     const describedattachments = await processMediaJson(url + "dane/", attachments)
-    console.log("Described attachments found:", describedattachments);
+    // console.log("Described attachments found:", describedattachments);
 
     // Process the content with the new function
     const finalContent = processContent(describedattachments, mdPage);
-    console.log("Final processed content:", finalContent);
+    // console.log("Final processed content:", finalContent);
 
     const responses = await processJsonWithGpt(finalContent, questions)
     console.log("Question responses:", responses);
+
+    await send_answer3("arxiv", responses);
 }
 
 main().catch(console.error);

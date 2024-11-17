@@ -8,6 +8,63 @@ import { Readable } from 'stream';
 const openai = new OpenAI();
 let groq: Groq | undefined;
 
+function askGpt(knowledge: string, question: string): Promise<string> {
+    const systemMsg = `Respond to user question using your context. Respond shortly in one sentence.
+
+    <context>
+    ${knowledge}
+    </context>
+    `
+    
+    const messages: ChatCompletionMessageParam[] = [
+        {
+            role: "system",
+            content: systemMsg
+        },
+        {
+            role: "user",
+            content: question
+        }
+    ];
+    
+    return openai.chat.completions.create({
+        model: "gpt-4o",
+        messages: messages,
+        max_tokens: 1024,
+        response_format: { type: "text" }
+    }).then(completion => completion.choices[0].message.content || '')
+    .catch(error => {
+        console.error("Error in OpenAI completion:", error);
+        throw error;
+    });
+}
+
+async function fetchQuestionsToJson(url: string): Promise<Record<string, string>> {
+    try {
+        const response = await fetch(url);
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        const text = await response.text();
+        
+        // Split text into lines and filter out empty lines
+        const lines = text.split('\n').filter(line => line.trim());
+        
+        // Create object from lines
+        const result: Record<string, string> = {};
+        for (const line of lines) {
+            const [key, value] = line.split('=');
+            if (key && value) {
+                result[key.trim()] = value.trim();
+            }
+        }
+        
+        return result;
+    } catch (error) {
+        throw new Error(`Failed to fetch and transform content: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+}
+
 function extractMarkdownAttachments(markdown: string): Record<string, string> {
     const attachments: Record<string, string> = {};
     
@@ -106,23 +163,19 @@ async function transcribeMp3(mediaDir: string, relativePath: string): Promise<st
         });
 }
 
-async function processMediaJson(mediaDir: string, json: Record<string, string>
-): Promise<Record<string, string>> {
-    const result: Record<string, string> = {};
+function processMediaJson(mediaDir: string, json: Record<string, string>): Promise<Record<string, string>> {
+    const processingPromises = Object.entries(json).map(([key, value]) => {
+        const processValue = value.toLowerCase().endsWith('.png') 
+            ? describePng(mediaDir, value)
+            : value.toLowerCase().endsWith('.mp3')
+                ? transcribeMp3(mediaDir, value)
+                : Promise.resolve(value);
+                
+        return processValue.then(processedValue => [key, processedValue] as [string, string]);
+    });
 
-    for (const [key, value] of Object.entries(json)) {
-        // Check file extension to determine which processor to use
-        if (value.toLowerCase().endsWith('.png')) {
-            result[key] = await describePng(mediaDir, value);
-        } else if (value.toLowerCase().endsWith('.mp3')) {
-            result[key] = await transcribeMp3(mediaDir, value);
-        } else {
-            // For any other file types, keep the original value
-            result[key] = value;
-        }
-    }
-
-    return result;
+    return Promise.all(processingPromises)
+        .then(results => Object.fromEntries(results));
 }
 
 async function downloadHtml(url: string): Promise<string> {
@@ -159,6 +212,20 @@ export function processContent(jsonData: Record<string, string>, markdownContent
     return processedContent;
 }
 
+async function processJsonWithGpt(knowledge: string, input: Record<string, string>): Promise<Record<string, string>> {
+    // Create array of promises for each key-value pair
+    const entries = Object.entries(input);
+    const promises = entries.map(([key, value]) => {
+        return askGpt(knowledge, value).then(newValue => [key, newValue] as [string, string]);
+    });
+
+    // Wait for all promises to resolve
+    const resolvedEntries = await Promise.all(promises);
+
+    // Convert back to object
+    return Object.fromEntries(resolvedEntries);
+}
+
 async function main() {
     // Get URL from environment variable and validate
     const url = process.env.CENTRALA_URL;
@@ -175,17 +242,22 @@ async function main() {
 
     const htmlPage = await downloadHtml(url + "/dane/arxiv-draft.html");
     const mdPage = NodeHtmlMarkdown.translate(htmlPage);
+
+    const questions = await fetchQuestionsToJson(url + "/data/" + taskKey + "/arxiv.txt");
+    console.log("Questions: ", questions);
     
-    // Extract attachments from markdown
     const attachments = extractMarkdownAttachments(mdPage);
     console.log("Attachments found:", attachments);
     
     const describedattachments = await processMediaJson(url + "dane/", attachments)
-    console.log("Attachments found:", describedattachments);
+    console.log("Described attachments found:", describedattachments);
 
     // Process the content with the new function
     const finalContent = processContent(describedattachments, mdPage);
     console.log("Final processed content:", finalContent);
+
+    const responses = await processJsonWithGpt(finalContent, questions)
+    console.log("Question responses:", responses);
 }
 
 main().catch(console.error);

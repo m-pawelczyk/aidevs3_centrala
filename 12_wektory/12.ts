@@ -1,12 +1,9 @@
 import { send_answer3 } from "../modules/tasks"
-import OpenAI, { toFile } from 'openai';
+import OpenAI from 'openai';
 import { QdrantClient } from "@qdrant/js-client-rest";
 import { v4 as uuidv4 } from "uuid";
-import type { ChatCompletionMessageParam } from "openai/resources/chat/completions";
-import { NodeHtmlMarkdown, NodeHtmlMarkdownOptions } from 'node-html-markdown'
 import fs from 'fs';
 import path from 'path';
-import { Readable } from 'stream';
 
 const openai = new OpenAI();
 let qdrant: QdrantClient;
@@ -40,10 +37,7 @@ interface QdrantSearchResult {
     vector?: number[] | null;
 }
 
-async function addPoints(
-    collectionName: string,
-    points: Array<Point>
-  ) {
+async function addPoints(collectionName: string, points: Array<Point>) {
     try {
         const pointsToUpsert = await Promise.all(
           points.map(async (point) => {
@@ -73,10 +67,7 @@ async function addPoints(
     }
 }
 
-async function performSearch(
-    query: string,
-    limit: number = 5
-  ): Promise<QdrantSearchResult[]> {
+async function performSearch(query: string, limit: number = 5): Promise<QdrantSearchResult[]> {
     const queryEmbedding = await openai.embeddings.create({
         input: query,
         model: "text-embedding-3-large"
@@ -153,7 +144,7 @@ async function main() {
             apiKey: qdrantKey,
         });
 
-        // await processFileContents();
+        await processFileContents();
 
         const result = await performSearch("W raporcie, z którego dnia znajduje się wzmianka o kradzieży prototypu broni?", 1);
         console.log("RESULT: ", result);

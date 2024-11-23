@@ -1,8 +1,8 @@
-import { send_answer3 } from "../modules/tasks"
-import OpenAI, { toFile } from 'openai';
-import type { ChatCompletionMessageParam } from "openai/resources/chat/completions";
 import * as fs from 'fs';
+import OpenAI from 'openai';
+import type { ChatCompletionMessageParam } from "openai/resources/chat/completions";
 import * as path from 'path';
+import { send_answer3 } from "../modules/tasks";
 
 const openai = new OpenAI();
 
@@ -94,6 +94,12 @@ async function buildCrossReferencedJson(
         processedQueries.add(query);
         const response = await selectAPI(centralaUrl, apikey, endpoint, query);
         
+        // Only process and store values if code is 0
+        if (response.code !== 0) {
+            console.log(`Invalid response code ${response.code} for query: ${query}`);
+            return [];
+        }
+
         if (!response.message) {
             console.log(`No message in response for query: ${query}`);
             return [];
@@ -101,7 +107,7 @@ async function buildCrossReferencedJson(
 
         const values = replaceAndSplit(response.message);
         
-        // Store result in appropriate section and process recursively
+        // Store result in appropriate section and process recursively only if code is 0
         if (endpoint === "/people") {
             currentJson.people[query] = values;
             console.log("PEOPLE", query, "->", values);
@@ -110,7 +116,9 @@ async function buildCrossReferencedJson(
             for (const value of values) {
                 if (!processedQueries.has(value)) {
                     const relatedValues = await processQuery(value, otherEndpoint, endpoint, currentJson);
-                    currentJson.places[value] = relatedValues;
+                    if (relatedValues.length > 0) { // Only store if we got valid values
+                        currentJson.places[value] = relatedValues;
+                    }
                 }
             }
         } else {
@@ -121,7 +129,9 @@ async function buildCrossReferencedJson(
             for (const value of values) {
                 if (!processedQueries.has(value)) {
                     const relatedValues = await processQuery(value, otherEndpoint, endpoint, currentJson);
-                    currentJson.people[value] = relatedValues;
+                    if (relatedValues.length > 0) { // Only store if we got valid values
+                        currentJson.people[value] = relatedValues;
+                    }
                 }
             }
         }
@@ -153,78 +163,105 @@ async function main() {
         return Promise.reject(new Error('Environment variables are not set'));
     }
 
-    // const note = loadBarbaraContent();
+    const note = loadBarbaraContent();
 
-    // const townsFromNote = JSON.parse(await askGpt(`You are allowed to respond to user question only based on your 
-    //     context which i note about Barbara. 
-    //     Provide answer in JSON format and notheing else:
+    const townsFromNote = JSON.parse(await askGpt(`You are allowed to respond to user question only based on your 
+        context which i note about Barbara. 
+        Provide answer in JSON format and notheing else:
 
-    //     {
-    //         "answer": [LIST OF KEYWORDS IN CAPILAT LETTERS]
-    //     }
+        {
+            "answer": [LIST OF KEYWORDS IN CAPILAT LETTERS]
+        }
 
-    //     Use only British alphabet. No Polish letters: Kraków -> KRAKOW
+        Use only British alphabet. No Polish letters: Kraków -> KRAKOW
 
-    //     <example>
-    //     {
-    //         "answer": ["KRAKOW", "LODZ"]
-    //     }
-    //     </example>
+        <example>
+        {
+            "answer": ["KRAKOW", "LODZ"]
+        }
+        </example>
         
         
-    //     <context>
-    //     ${note}
-    //     </context>
-    // `, "Podaj miasta z notatki w mianowniku"));
-    // console.log("Towns in note: ", townsFromNote);
+        <context>
+        ${note}
+        </context>
+    `, "Podaj miasta z notatki w mianowniku"));
+    console.log("Towns in note: ", townsFromNote);
 
-    // const namesFromNote = JSON.parse(await askGpt(`You are allowed to respond to user question only based on your 
-    //     context which i note about Barbara. 
-    //     Provide answer in JSON format and notheing else:
+    const namesFromNote = JSON.parse(await askGpt(`You are allowed to respond to user question only based on your 
+        context which i note about Barbara. 
+        Provide answer in JSON format and notheing else:
 
-    //     {
-    //         "answer": [LIST OF KEYWORDS IN CAPILAT LETTERS]
-    //     }
+        {
+            "answer": [LIST OF KEYWORDS IN CAPILAT LETTERS]
+        }
 
-    //     Use only British alphabet. No Polish letters: Mirosław -> MIROSLAW
+        Use only British alphabet. No Polish letters: Mirosław -> MIROSLAW
 
-    //     <example>
-    //     {
-    //         "answer": ["KRAKOW", "LODZ"]
-    //     }
+        <example>
+        {
+            "answer": ["KRAKOW", "LODZ"]
+        }
 
-    //     or
+        or
 
-    //     {
-    //         "answer": ["MICHAL", "MIROSLAW"]
-    //     }
-    //     </example>
+        {
+            "answer": ["MICHAL", "MIROSLAW"]
+        }
+        </example>
         
         
-    //     <context>
-    //     ${note}
-    //     </context>
-    // `, "Podaj polskie imiona z notatki w mianowniku"));
-    // console.log("Names in note: ", namesFromNote);
+        <context>
+        ${note}
+        </context>
+    `, "Podaj polskie imiona z notatki w mianowniku"));
+    console.log("Names in note: ", namesFromNote);
 
-    // const crossReferencedData = await buildCrossReferencedJson(url, taskKey, 
-    //     {
-    //         people: namesFromNote['answer'],
-    //         places: townsFromNote['answer']
-    //     }
-    // );
-    // console.log("Cross-referenced data:", JSON.stringify(crossReferencedData, null, 2));
+    const crossReferencedData = await buildCrossReferencedJson(url, taskKey, 
+        {
+            people: namesFromNote['answer'],
+            places: townsFromNote['answer']
+        }
+    );
+    console.log("Cross-referenced data:", JSON.stringify(crossReferencedData, null, 2));
 
 
-    // https://centrala.ag3nts.org/people 
-    // https://centrala.ag3nts.org/places 
-    const responses = await selectAPI(url, taskKey, "places", "RAFAŁ")
-    console.log("Question responses:", responses);
+    const result = JSON.parse(await askGpt(`Jesteś znanym detektywem, który rozwizuje skomplikowane 
+        zagadki. Musisz odpowiedzieć na pytanie uytkownika na podstawie notatki i danych, ktore udało 
+        nam się zdobyć w formacie JSON. Dane w JSON mog być uszkodzone, badź ostrozny. Przeprowadz 
+        uzytkownika przez swoje rozwiazanie krok po kroku i podaj ostateczna odpowiedz w polu 'final_answer'. 
 
-    // const responses2 = await selectAPI(url, taskKey, "people", "ADAM")
-    // console.log("Question responses:", responses2);
+        Musisz wnioskować na teamt połczeń w dostarczonych strukturach JSON. Nie ignoruj tej informacji. 
+        Notatka nie wystarczy. Myśl na głos. Uytkownik cię teraz nie słyszy. 
 
-    // await send_answer3("arxiv", responses);
+        W polu 'steps' podaj wyjaśnienie rozwizania.
+        W polu 'final_answer' podaj tylko nazwę miasta i nic więcej.
+
+        <example>
+        {
+            "steps": Zosia spotkała się ostatni raz z Jankiem w Londynie. Nikt jej więcej nie widział. Zosia powinna być nadal w Londynie
+            'final_answer': LONDYN
+        }
+        </example>
+        
+        <context>
+        Notatka:
+        ${note}
+
+        JSON z miastami - Miasta w których jako wartości sa widoczne imona osob widzianych w tych miejscowościach:
+        ${crossReferencedData.people}
+        
+        JSON z osobami - Osoby w których jako wartości sa widoczne miasta w których były widziane
+        ${crossReferencedData.places}
+        </context>
+    `, "W którym mieście znajduje się Barbara?."));
+    console.log("Names in note: ", result);
+
+    const answer = result['final_answer'].replace("Ó", "O")
+
+    console.log("ANSWER: ", answer)
+
+    await send_answer3("loop", "ELBLAG");
 }
 
 main().catch(console.error);

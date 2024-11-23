@@ -170,7 +170,6 @@ async function main() {
     // Get URL from environment variable and validate
     const url = process.env.CENTRALA_URL;
     const taskKey = process.env.TASKS_API_KEY;
-    const groqApiKey = process.env.GROQ_API_KEY;
 
     if (!url || !taskKey) {
         return Promise.reject(new Error('Environment variables are not set'));

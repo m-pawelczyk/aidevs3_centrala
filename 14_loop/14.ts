@@ -6,6 +6,19 @@ import { send_answer3 } from "../modules/tasks";
 
 const openai = new OpenAI();
 
+function formatJsonToString(json: Record<string, string[]>): string {
+    return Object.entries(json)
+        .map(([city, names]) => {
+            // Handle the special case of restricted data
+            if (names.includes("[**RESTRICTED") && names.includes("DATA**]")) {
+                return `${city} - RESTRICTED DATA`;
+            }
+            // Regular case: join names with commas
+            return `${city} - ${names.join(", ")}`;
+        })
+        .join("\n");
+}
+
 function loadBarbaraContent(): string {
     const filePath = path.join(__dirname, 'barbara.txt');
     return fs.readFileSync(filePath, 'utf-8');
@@ -225,16 +238,21 @@ async function main() {
     );
     console.log("Cross-referenced data:", JSON.stringify(crossReferencedData, null, 2));
 
+    const citiesToPeple = formatJsonToString(crossReferencedData['places']);
+    console.log("CITIES:", citiesToPeple);
+
 
     const result = JSON.parse(await askGpt(`Jesteś znanym detektywem, który rozwizuje skomplikowane 
-        zagadki. Musisz odpowiedzieć na pytanie uytkownika na podstawie notatki i danych, ktore udało 
-        nam się zdobyć w formacie JSON. Dane w JSON mog być uszkodzone, badź ostrozny. Przeprowadz 
+        zagadki. Musisz odpowiedzieć na pytanie uzytkownika na podstawie notatki i danych, ktore udało 
+        nam się nam zdobyc. Dane dotycza miast i widzianych w nich osob, mog być uskodzone. Przeprowadz 
         uzytkownika przez swoje rozwiazanie krok po kroku i podaj ostateczna odpowiedz w polu 'final_answer'. 
 
-        Musisz wnioskować na teamt połczeń w dostarczonych strukturach JSON. Nie ignoruj tej informacji. 
-        Notatka nie wystarczy. Myśl na głos. Uytkownik cię teraz nie słyszy. 
+        Musisz wnioskować na teamt połaczeń w dostarczonych połczeniach miast i ludzi. Nie ignoruj tej informacji. 
+        Notatka nie wystarczy. Myśl na głos. Uzytkownik cię teraz nie słyszy. 
 
-        W polu 'steps' podaj wyjaśnienie rozwizania.
+        Swoja odpowiedź zwróć w formacie JSON.
+
+        W polu 'steps' podaj wyjaśnienie rozwiazania.
         W polu 'final_answer' podaj tylko nazwę miasta i nic więcej.
 
         <example>
@@ -248,11 +266,8 @@ async function main() {
         Notatka:
         ${note}
 
-        JSON z miastami - Miasta w których jako wartości sa widoczne imona osob widzianych w tych miejscowościach:
-        ${crossReferencedData.people}
-        
-        JSON z osobami - Osoby w których jako wartości sa widoczne miasta w których były widziane
-        ${crossReferencedData.places}
+        Lista miast i widzianych w nich osob:
+        ${citiesToPeple}
         </context>
     `, "W którym mieście znajduje się Barbara?."));
     console.log("Names in note: ", result);
@@ -261,7 +276,7 @@ async function main() {
 
     console.log("ANSWER: ", answer)
 
-    await send_answer3("loop", "ELBLAG");
+    await send_answer3("loop", answer);
 }
 
 main().catch(console.error);

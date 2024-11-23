@@ -272,11 +272,8 @@ async function main() {
     `, "W którym mieście znajduje się Barbara?."));
     console.log("Names in note: ", result);
 
-    const answer = result['final_answer'].replace("Ó", "O")
 
-    console.log("ANSWER: ", answer)
-
-    await send_answer3("loop", answer);
+    await send_answer3("loop", result['final_answer']);
 }
 
 main().catch(console.error);

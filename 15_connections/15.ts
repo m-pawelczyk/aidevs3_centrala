@@ -1,13 +1,8 @@
 import neo4j from 'neo4j-driver';
 import { send_answer3 } from "../modules/tasks"
 
-// Temporary type definitions until neo4j-driver is installed
 type Driver = any;
-type Session = any;
-type Neo4jRecord = any;
-type Integer = any;
 
-// Type for document properties
 type UserDocument = {
     id: string;
     username: string;
@@ -110,35 +105,35 @@ export class Neo4jService {
         }
     }
 
-    async getDocument(id: string): Promise<UserDocument | null> {
-        const session = this.driver.session();
-        try {
-            const result = await session.run(
-                'MATCH (d:User {id: $id}) RETURN d',
-                { id: id }
-            );
-            if (result.records.length === 0) return null;
-            return result.records[0].get('d').properties as UserDocument;
-        } finally {
-            await session.close();
-        }
-    }
+    // async getDocument(id: string): Promise<UserDocument | null> {
+    //     const session = this.driver.session();
+    //     try {
+    //         const result = await session.run(
+    //             'MATCH (d:User {id: $id}) RETURN d',
+    //             { id: id }
+    //         );
+    //         if (result.records.length === 0) return null;
+    //         return result.records[0].get('d').properties as UserDocument;
+    //     } finally {
+    //         await session.close();
+    //     }
+    // }
 
-    async getRelatedDocuments(id: string): Promise<Array<UserDocument>> {
-        const session = this.driver.session();
-        try {
-            const result = await session.run(
-                `MATCH (d:User {id: $id})-[r:KNOWS]->(related:User)
-                RETURN related`,
-                { id: id }
-            );
-            return result.records.map((record: Neo4jRecord) => 
-                record.get('related').properties as UserDocument
-            );
-        } finally {
-            await session.close();
-        }
-    }
+    // async getRelatedDocuments(id: string): Promise<Array<UserDocument>> {
+    //     const session = this.driver.session();
+    //     try {
+    //         const result = await session.run(
+    //             `MATCH (d:User {id: $id})-[r:KNOWS]->(related:User)
+    //             RETURN related`,
+    //             { id: id }
+    //         );
+    //         return result.records.map((record: Neo4jRecord) => 
+    //             record.get('related').properties as UserDocument
+    //         );
+    //     } finally {
+    //         await session.close();
+    //     }
+    // }
 
     async findShortestPath(name1: string, name2: string): Promise<string> {
         const session = this.driver.session();
@@ -197,27 +192,27 @@ async function main() {
     const neo4jService = new Neo4jService();
 
     try {
-        // Verify connection
         const isConnected = await neo4jService.verifyConnection();
         console.log('Connected to Neo4j:', isConnected);
 
-        // const users = await selectDB(url, taskKey, "select * from users")
-        // const connections = await selectDB(url, taskKey, "select * from connections")
+        const users = await selectDB(url, taskKey, "select * from users")
+        const connections = await selectDB(url, taskKey, "select * from connections")
 
         if (isConnected) {
 
             // Add all users first
-            // await neo4jService.addDocuments(users.reply);
-            // console.log('Added all users');
+            await neo4jService.addDocuments(users.reply);
+            console.log('Added all users');
 
-            // // Then create all connections
-            // await neo4jService.addRelations(connections.reply);
-            // console.log('Added all connections');
+            // Then create all connections
+            await neo4jService.addRelations(connections.reply);
+            console.log('Added all connections');
 
-            console.log(await neo4jService.findShortestPath("Rafał", "Barbara"))
+            const pathRafalBarbara = await neo4jService.findShortestPath("Rafał", "Barbara");
 
-            // Now we can close the connection
             await neo4jService.close();
+
+            await send_answer3("connections", pathRafalBarbara);
         }
     } catch (error) {
         console.error('Error:', error);

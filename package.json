@@ -15,7 +15,8 @@
     "10": "bun 10_arxiv/10.ts",
     "11": "bun 11_dokumenty/11.ts",
     "12": "bun 12_wektory/12.ts",
-    "14": "bun 14_loop/14.ts"
+    "14": "bun 14_loop/14.ts",
+    "16": "bun 16_photos/16.ts"
   },
   "devDependencies": {
     "bun-types": "latest"

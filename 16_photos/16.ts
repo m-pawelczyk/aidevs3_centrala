@@ -69,9 +69,9 @@ Swoją odpowiedź zwroć obiekt JSON jak ponizej. Dla kazdego podanego pliku stw
 <response_format>
 {
     "fileName": {
-        "_thinking": Wyjaśnienie towjej decyzji i procesu rozumowania
+        "_thinking": Wyjaśnienie twojej decyzji i procesu rozumowania
         "fileName": Nazwa pliku
-        "filePath": Adres, pod którym naley szukać pliku
+        "filePath": Adres, pod którym nalezy szukać pliku. Jeśli uzytkownik nie podał zostaw pole puste
         "action": Akcja, która chcesz wykonać na pliku, opcje: "DESCRIBE" | "REPAIR" | "DARKEN" | "BRIGHTEN"
         "message": Wiadomość do modelu Vision jeśli uzywasz "DESCRIBE". Dla innych akcji zostaw puste. 
         "quality": Jakość przesłanego pliku, opcje "INIT", "BAD", "NOT_UNDERSTAND", "PORTRAIT"
@@ -104,11 +104,17 @@ A: [{
     
 
 
-    const images = await send_answer3("photos", "START");
-    console.log("IMAGES:", images);
-    console.log("message:", images['message']);
+    // const images = await send_answer3("photos", "START");
+    // console.log("IMAGES:", images);
+    // console.log("message:", images['message']);
 
-    const reply1 = await askGpt(systemMsg, images['message'] as string);
+    // const reply1 = await askGpt(systemMsg, images['message'] as string);
+    // console.log("Reply:", reply1);
+
+    const images = await send_answer3("photos", "REPAIR IMG_1443.PNG");
+    console.log("IMAGES:", images);
+
+    const reply1 = await askGpt(systemMsg, "IMG_1443.PNG: Zdjęcie przestawia wizerunek kobiety w okularach. Widać twarz. Zdjęcie jest dobrej jakości.");
     console.log("Reply:", reply1);
 }
 

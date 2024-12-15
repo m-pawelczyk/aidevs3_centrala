@@ -129,7 +129,9 @@ function formatDescriptionOutput(output: DescriptionOutput): string {
 }
 
 async function main() {
-    // Get URL from environment variable and validate
+    // It is horrible solution and have to be fixed, but I have spent too much time on this :/ 
+
+
     const url = process.env.CENTRALA_URL;
     const taskKey = process.env.TASKS_API_KEY;
 
@@ -159,7 +161,7 @@ BAD - Zła jakość i wymaga poprawy pliku przy pomocy narzędzi "REPAIR", "DARK
 
 NOT_UNDERSTAND - Wiadomość użytkownika nie jest zrozumiała. Nie zawiera pliku ani innej sensownej informacji.
 
-PORTRAIT - Plik gotowy do wykonania rysopisu. Jest w dobrej jakości. 
+PORTRAIT - Plik gotowy do wykonania rysopisu. Na zdjęciu jest widoczna twarz przynajmniej jednej osoby. Jest w dobrej jakości. 
 
 NOT_A_PORTRAIT - Na zdjęciu na pewno nie widać twarzy i nie nadaje się do wykonania rysopisu.
 
@@ -201,60 +203,75 @@ A: [{
 </example>
 `
 
-    const initMessageWithImages = await send_answer3("photos", "START") as TaskResponse;
-    console.log("IMAGES:", initMessageWithImages);
+    // const initMessageWithImages = await send_answer3("photos", "START") as TaskResponse;
+    // console.log("IMAGES:", initMessageWithImages);
 
-    let ready = false;
-    let attempts = 0;
-    let userinput = initMessageWithImages.message;
-    let policemanReply;
-    let visionReply;
-    let simpleVisionReply;
-    let robotReply;
-    const maxAttempts = 5;
-    let portrait;
-    let portraits = []
+    // let ready = false;
+    // let attempts = 0;
+    // let userinput = initMessageWithImages.message;
+    // let policemanReply;
+    // let visionReply;
+    // let simpleVisionReply;
+    // let robotReply;
+    // const maxAttempts = 5;
+    // let portrait;
+    // let portraits = []
 
-    policemanReply = await askGpt(systemMsg, userinput);
-    console.log("Policeman:", policemanReply);
+    // policemanReply = await askGpt(systemMsg, userinput);
+    // console.log("Policeman:", policemanReply);
 
-    visionReply = await processPhotos(JSON.parse(policemanReply));
-    console.log("Vision:", visionReply);
+    // visionReply = await processPhotos(JSON.parse(policemanReply));
+    // console.log("Vision:", visionReply);
 
-    simpleVisionReply = await formatDescriptionOutput(visionReply);
-    console.log("Vision Simple:", simpleVisionReply);
+    // simpleVisionReply = await formatDescriptionOutput(visionReply);
+    // console.log("Vision Simple:", simpleVisionReply);
 
-    policemanReply = await askGpt(systemMsg, simpleVisionReply);
-    console.log("Policeman 2:", policemanReply);
+    // policemanReply = await askGpt(systemMsg, simpleVisionReply);
+    // console.log("Policeman 2:", policemanReply);
     
-    robotReply = await processBadPhotos(policemanReply);
-    console.log("Robot:", robotReply);
+    // robotReply = await processBadPhotos(policemanReply);
+    // console.log("Robot:", robotReply);
 
-    policemanReply = await askGpt(systemMsg, robotReply);
-    console.log("Policeman 3:", policemanReply);
-    portrait = findFirstPortraitImage(JSON.parse(policemanReply))
-    if (portrait !== undefined) {
-        portraits.push(portrait)
-    }
-    visionReply = await processPhotos(JSON.parse(policemanReply));
-    console.log("Vision:", visionReply);
+    // policemanReply = await askGpt(systemMsg, robotReply);
+    // console.log("Policeman 3:", policemanReply);
+    // portrait = findFirstPortraitImage(JSON.parse(policemanReply))
+    // if (portrait !== undefined) {
+    //     portraits.push(portrait)
+    // }
+    // visionReply = await processPhotos(JSON.parse(policemanReply));
+    // console.log("Vision:", visionReply);
 
-    simpleVisionReply = await formatDescriptionOutput(visionReply);
-    console.log("Vision Simple:", simpleVisionReply);
+    // simpleVisionReply = await formatDescriptionOutput(visionReply);
+    // console.log("Vision Simple:", simpleVisionReply);
 
-    policemanReply = await askGpt(systemMsg, simpleVisionReply);
-    console.log("Policeman 4:", policemanReply);
-    portrait = findFirstPortraitImage(JSON.parse(policemanReply))
-    if (portrait !== undefined) {
-        portraits.push(portrait)
-    }
+    // policemanReply = await askGpt(systemMsg, simpleVisionReply);
+    // console.log("Policeman 4:", policemanReply);
+    // portrait = findFirstPortraitImage(JSON.parse(policemanReply))
+    // if (portrait !== undefined) {
+    //     portraits.push(portrait)
+    // }
 
-    if (portraits.length > 0) {
-        const portraitDescription = await askGptVisionByURL(portraits[0].filePath, "Jesteś policyjnym rysownikiem. Wykonań profesjonalny rysopis osoby na zdjęciu. Podaj znaki szczególne: długość i kolor włosów, kształt twarzy");
-        console.log("Rysopis:", portraitDescription.choices[0].message.content);
-        const result = await send_answer3("photos", portraitDescription.choices[0].message.content)
-        console.log("Result", result);
-    }
+    const descriptionMessage = `Pomóż wykonać kilkuzdaniowy opis portretu Barbary ze zdjęcia. Skup się na znakach szczególnychtakich jak:
+- kolor oczu
+- długość, cechy i kolor włosów
+- czy posiada okulary jeśli tak to jakie
+- kształt twarzy
+- wiek, który jesteś w stanie ocenić z fotografii
+- ubiór jeśli jest widoczny
+Nie oceniaj Barbary tylko skup się na faktach je podaj. Korzystaj z jej imienia.
+    `
+    // if (portraits.length > 0) {
+    //     const portraitDescription = await askGptVisionByURL(portraits[0].filePath, descriptionMessage);
+    //     console.log("Rysopis:", portraitDescription.choices[0].message.content);
+    //     const result = await send_answer3("photos", portraitDescription.choices[0].message.content)
+    //     console.log("Result", result);
+    // }
+
+    // const portraitDescription = await askGptVisionByURL("https://centrala.ag3nts.org/dane/barbara/IMG_1410_FXER.PNG", descriptionMessage);
+    const portraitDescription = await askGptVisionByURL("https://centrala.ag3nts.org/dane/barbara/IMG_1443_FT12.PNG", descriptionMessage);
+    console.log("Description", portraitDescription.choices[0].message.content);
+    const result = await send_answer3("photos", portraitDescription.choices[0].message.content)
+    console.log("Result", result);
 }
 
 main().catch(console.error);

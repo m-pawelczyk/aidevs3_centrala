@@ -6,7 +6,6 @@ import { send_answer3 } from "../modules/tasks";
 
 const openai = new OpenAI();
 
-
 function askGpt(systemMsg: string, question: string): Promise<string> {    
     const messages: ChatCompletionMessageParam[] = [
         {
@@ -32,7 +31,6 @@ function askGpt(systemMsg: string, question: string): Promise<string> {
 }
 
 async function askGptVisionByURL(imageURL: string, question: string) : Promise<OpenAI.Chat.Completions.ChatCompletion> {
-        
     try {
         const chatCompletion = await openai.chat.completions.create({
             model: "gpt-4o-mini",
@@ -61,6 +59,47 @@ async function askGptVisionByURL(imageURL: string, question: string) : Promise<O
     }
 }
 
+interface PhotoEntry {
+    _thinking: string;
+    fileName: string;
+    filePath: string;
+    action: string;
+    message: string;
+    quality: string;
+}
+
+interface PhotosInput {
+    [key: string]: PhotoEntry;
+}
+
+interface DescriptionOutput {
+    [key: string]: string;
+}
+
+interface TaskResponse {
+    message: string;
+    [key: string]: unknown;
+}
+
+async function processPhotos(input: PhotosInput): Promise<DescriptionOutput> {
+    const result: DescriptionOutput = {};
+    
+    for (const [_, entry] of Object.entries(input)) {
+        if (entry.action === "DESCRIBE") {
+            try {
+                const description = await askGptVisionByURL(entry.filePath, entry.message);
+                if (description.choices && description.choices[0]?.message?.content) {
+                    result[entry.filePath] = description.choices[0].message.content;
+                }
+            } catch (error) {
+                console.error(`Error processing ${entry.fileName}:`, error);
+                result[entry.filePath] = `Error: Failed to process image`;
+            }
+        }
+    }
+    
+    return result;
+}
 
 async function main() {
     // Get URL from environment variable and validate
@@ -95,6 +134,8 @@ NOT_UNDERSTAND - Wiadomość użytkownika nie jest zrozumiała. Nie zawiera plik
 
 PORTRAIT - Plik gotowy do wykonania rysopisu. Jest w dobrej jakości. 
 
+NOT_A_PORTRAIT - Na zdjęciu na pewno nie widać twarzy i nie nadaje się do wykonania rysopisu.
+
 Swoją odpowiedź zwroć obiekt JSON jak ponizej. Dla kazdego podanego pliku stwórz osobny wpis w tablicy. 
 
 <response_format>
@@ -102,7 +143,7 @@ Swoją odpowiedź zwroć obiekt JSON jak ponizej. Dla kazdego podanego pliku stw
     Nazwa pliku: {
         "_thinking": Wyjaśnienie twojej decyzji i procesu rozumowania
         "fileName": Nazwa pliku
-        "filePath": Adres, pod którym nalezy szukać pliku. Jeśli uzytkownik nie podał zostaw pole puste
+        "filePath": Adres, pod którym nalezy szukać pliku. Jeśli uzytkownik nie podał pełnego URL do pliku to doklej "https://centrala.ag3nts.org/dane/barbara/" przed nazw pliku
         "action": Akcja, która chcesz wykonać na pliku, opcje: "DESCRIBE" | "REPAIR" | "DARKEN" | "BRIGHTEN"
         "message": Wiadomość do modelu Vision jeśli uzywasz "DESCRIBE". Dla innych akcji zostaw puste. 
         "quality": Jakość przesłanego pliku, opcje "INIT", "BAD", "NOT_UNDERSTAND", "PORTRAIT"
@@ -132,14 +173,24 @@ A: [{
 }]
 </example>
 `
-    
 
+    // const images = await send_answer3("photos", "START") as TaskResponse;
+    // // console.log("IMAGES:", images);
+    // // console.log("message:", images['message']);
 
-    const images = await send_answer3("photos", "START");
-    // console.log("IMAGES:", images);
-    // console.log("message:", images['message']);
+    // const reply1 = await askGpt(systemMsg, images.message);
+    // console.log("Reply:", reply1);
 
-    const reply1 = await askGpt(systemMsg, images['message'] as string);
+    // const reply2 = await processPhotos(JSON.parse(reply1))
+    // console.log("Descriptions:", reply2);
+
+    const descriptions = `
+        IMG_559.PNG - Na tej fotografii występują wyraźne oznaki uszkodzenia, z wieloma zakłóceniami i zniekształceniami obrazu, co sprawia, że trudno określić, co dokładnie przedstawia. Efekt może być opisywany jako zbyt jasny lub rozmyty ze względu na rozrzucenie kolorów oraz poziome i pionowe linie. Twarz osoby nie jest wyraźnie widoczna, a szczegóły są zniekształcone.
+        IMG_1410.PNG - Na zdjęciu widać dwa zamazane kontury postaci, jednak szczegóły są trudne do uchwycenia, ponieważ obraz jest bardzo ciemny. Nie można jednoznacznie stwierdzić, czy twarze osób są widoczne. Wygląda na to, że zdjęcie jest za ciemne, co utrudnia rozpoznanie szczegółów.
+        IMG_1443.PNG - Na zdjęciu widoczne są wzory w formie fal oraz siatki w dwóch kolorach, czerwonym i niebieskim. Wygląda na to, że obraz jest zniekształcony i nieczytelny. Nie mogę stwierdzić, czy na zdjęciu jest widoczna twarz osoby, ponieważ obraz nie jest wystarczająco wyraźny.
+        IMG_1444.PNG - Na fotografii widać osobę idącą ulicą w miejskim otoczeniu, trzymającą torbę. W tle znajdują się inni przechodnie oraz część zabudowy. Oświetlenie wydaje się być ciepłe i złote, co sugeruje, że może być to wczesny wieczór lub poranek. \n\nNie wydaje się, aby zdjęcie było uszkodzone, ale istnieje możliwość, że jest lekko za jasne w niektórych miejscach, co może powodować utratę detali. Twarz osoby jest nieczytelna, ponieważ jest skierowana od kamery.
+    `
+    const reply1 = await askGpt(systemMsg, descriptions);
     console.log("Reply:", reply1);
 
 

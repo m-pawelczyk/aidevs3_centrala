@@ -31,6 +31,37 @@ function askGpt(systemMsg: string, question: string): Promise<string> {
     });
 }
 
+async function askGptVisionByURL(imageURL: string, question: string) : Promise<OpenAI.Chat.Completions.ChatCompletion> {
+        
+    try {
+        const chatCompletion = await openai.chat.completions.create({
+            model: "gpt-4o-mini",
+            messages: [
+              {
+                role: "user",
+                content: [
+                  { type: "text", text: question },
+                  {
+                    type: "image_url",
+                    image_url: {
+                      "url": imageURL,
+                    },
+                  },
+                ],
+              },
+            ],
+            max_tokens: 1024,
+            response_format: { type: "text" }
+          });
+        
+        return chatCompletion as OpenAI.Chat.Completions.ChatCompletion;
+    } catch (error) {
+        console.error("Error in OpenAI completion:", error);
+        throw error;
+    }
+}
+
+
 async function main() {
     // Get URL from environment variable and validate
     const url = process.env.CENTRALA_URL;
@@ -42,7 +73,7 @@ async function main() {
 
     const systemMsg = `Jesteś specjalistą od budowania rysopisow osób. Twoim zadaniem jest stworzenie rysopisu zaginionej osoby, której szukamy. Niestety pliki, które otrzymamy mogą być slabej jakości lub nie przedstawiać osób możliwych do opisania. Masz jednak do wyboru kilka narzędzi, którymi możesz się posłużyć w celu poprawy jakości pliku oraz jegio opisu. Jeśli otrzymany opis nie pozwala na skorzystanie z pliku zignoruj go. Nie jesteśmy wtedy w stanie naprawić uszkodzenia.
 
-W wiadomociach użytkownika możesz znaleźć nazwy plikó a także ich lokalizację.
+W wiadomociach użytkownika możesz znaleźć nazwy plików a także ich lokalizację.
 
 Masz 4 narzędzia, które możesz wykorzystać i poprosić użytkownika o wykonanie dla Ciebie operacji, które umieszczasz w polu "action":
 
@@ -68,7 +99,7 @@ Swoją odpowiedź zwroć obiekt JSON jak ponizej. Dla kazdego podanego pliku stw
 
 <response_format>
 {
-    "fileName": {
+    Nazwa pliku: {
         "_thinking": Wyjaśnienie twojej decyzji i procesu rozumowania
         "fileName": Nazwa pliku
         "filePath": Adres, pod którym nalezy szukać pliku. Jeśli uzytkownik nie podał zostaw pole puste
@@ -104,18 +135,22 @@ A: [{
     
 
 
-    // const images = await send_answer3("photos", "START");
+    const images = await send_answer3("photos", "START");
     // console.log("IMAGES:", images);
     // console.log("message:", images['message']);
 
-    // const reply1 = await askGpt(systemMsg, images['message'] as string);
-    // console.log("Reply:", reply1);
-
-    const images = await send_answer3("photos", "REPAIR IMG_1443.PNG");
-    console.log("IMAGES:", images);
-
-    const reply1 = await askGpt(systemMsg, "IMG_1443.PNG: Zdjęcie przestawia wizerunek kobiety w okularach. Widać twarz. Zdjęcie jest dobrej jakości.");
+    const reply1 = await askGpt(systemMsg, images['message'] as string);
     console.log("Reply:", reply1);
+
+
+    // const reply2 = await askGptVisionByURL("    ", "Co znajduje się na tym obrazie? Czy jest to zdjęcie osoby? Jaka jest jego jakość i czy wymaga poprawek?");
+    // console.log("Reply:", reply2);
+
+    // const images = await send_answer3("photos", "REPAIR IMG_1443.PNG");
+    // console.log("IMAGES:", images);
+
+    // const reply1 = await askGpt(systemMsg, "IMG_1443.PNG: Zdjęcie przestawia wizerunek kobiety w okularach. Widać twarz. Zdjęcie jest dobrej jakości.");
+    // console.log("Reply:", reply1);
 }
 
 main().catch(console.error);

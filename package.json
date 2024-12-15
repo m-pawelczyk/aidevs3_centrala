@@ -16,6 +16,8 @@
     "11": "bun 11_dokumenty/11.ts",
     "12": "bun 12_wektory/12.ts",
     "14": "bun 14_loop/14.ts",
+    "15": "bun 15_connections/15.ts",
+    "16": "bun 16_photos/16.ts",
     "17": "bun 17_research/17.ts"
   },
   "devDependencies": {

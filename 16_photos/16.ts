@@ -81,6 +81,27 @@ interface TaskResponse {
     [key: string]: unknown;
 }
 
+function findFirstPortraitImage(data: PhotosInput): PhotoEntry | undefined {
+    return Object.values(data).find(entry => entry.quality === "PORTRAIT");
+}
+
+async function processBadPhotos(data: string | PhotosInput): Promise<string> {
+    // Parse JSON if string input
+    const photoData: PhotosInput = typeof data === 'string' ? JSON.parse(data) : data;
+    
+    // Filter for BAD quality and map to [action, fileName]
+    const badPhotos = Object.values(photoData)
+        .filter(entry => entry.quality === "BAD")
+        .map(async entry => {
+            const response = await send_answer3("photos", entry.action + " " + entry.fileName) as TaskResponse;
+            return response.message;
+        });
+    
+    // Wait for all send_answer3 calls to complete and join results
+    const results = await Promise.all(badPhotos);
+    return results.join('\n');
+}
+
 async function processPhotos(input: PhotosInput): Promise<DescriptionOutput> {
     const result: DescriptionOutput = {};
     
@@ -89,7 +110,7 @@ async function processPhotos(input: PhotosInput): Promise<DescriptionOutput> {
             try {
                 const description = await askGptVisionByURL(entry.filePath, entry.message);
                 if (description.choices && description.choices[0]?.message?.content) {
-                    result[entry.filePath] = description.choices[0].message.content;
+                    result[entry.fileName] = description.choices[0].message.content;
                 }
             } catch (error) {
                 console.error(`Error processing ${entry.fileName}:`, error);
@@ -99,6 +120,12 @@ async function processPhotos(input: PhotosInput): Promise<DescriptionOutput> {
     }
     
     return result;
+}
+
+function formatDescriptionOutput(output: DescriptionOutput): string {
+    return Object.entries(output)
+        .map(([key, value]) => `${key} - ${value}`)
+        .join('\n');
 }
 
 async function main() {
@@ -174,34 +201,60 @@ A: [{
 </example>
 `
 
-    // const images = await send_answer3("photos", "START") as TaskResponse;
-    // // console.log("IMAGES:", images);
-    // // console.log("message:", images['message']);
+    const initMessageWithImages = await send_answer3("photos", "START") as TaskResponse;
+    console.log("IMAGES:", initMessageWithImages);
 
-    // const reply1 = await askGpt(systemMsg, images.message);
-    // console.log("Reply:", reply1);
+    let ready = false;
+    let attempts = 0;
+    let userinput = initMessageWithImages.message;
+    let policemanReply;
+    let visionReply;
+    let simpleVisionReply;
+    let robotReply;
+    const maxAttempts = 5;
+    let portrait;
+    let portraits = []
 
-    // const reply2 = await processPhotos(JSON.parse(reply1))
-    // console.log("Descriptions:", reply2);
+    policemanReply = await askGpt(systemMsg, userinput);
+    console.log("Policeman:", policemanReply);
 
-    const descriptions = `
-        IMG_559.PNG - Na tej fotografii występują wyraźne oznaki uszkodzenia, z wieloma zakłóceniami i zniekształceniami obrazu, co sprawia, że trudno określić, co dokładnie przedstawia. Efekt może być opisywany jako zbyt jasny lub rozmyty ze względu na rozrzucenie kolorów oraz poziome i pionowe linie. Twarz osoby nie jest wyraźnie widoczna, a szczegóły są zniekształcone.
-        IMG_1410.PNG - Na zdjęciu widać dwa zamazane kontury postaci, jednak szczegóły są trudne do uchwycenia, ponieważ obraz jest bardzo ciemny. Nie można jednoznacznie stwierdzić, czy twarze osób są widoczne. Wygląda na to, że zdjęcie jest za ciemne, co utrudnia rozpoznanie szczegółów.
-        IMG_1443.PNG - Na zdjęciu widoczne są wzory w formie fal oraz siatki w dwóch kolorach, czerwonym i niebieskim. Wygląda na to, że obraz jest zniekształcony i nieczytelny. Nie mogę stwierdzić, czy na zdjęciu jest widoczna twarz osoby, ponieważ obraz nie jest wystarczająco wyraźny.
-        IMG_1444.PNG - Na fotografii widać osobę idącą ulicą w miejskim otoczeniu, trzymającą torbę. W tle znajdują się inni przechodnie oraz część zabudowy. Oświetlenie wydaje się być ciepłe i złote, co sugeruje, że może być to wczesny wieczór lub poranek. \n\nNie wydaje się, aby zdjęcie było uszkodzone, ale istnieje możliwość, że jest lekko za jasne w niektórych miejscach, co może powodować utratę detali. Twarz osoby jest nieczytelna, ponieważ jest skierowana od kamery.
-    `
-    const reply1 = await askGpt(systemMsg, descriptions);
-    console.log("Reply:", reply1);
+    visionReply = await processPhotos(JSON.parse(policemanReply));
+    console.log("Vision:", visionReply);
 
+    simpleVisionReply = await formatDescriptionOutput(visionReply);
+    console.log("Vision Simple:", simpleVisionReply);
 
-    // const reply2 = await askGptVisionByURL("    ", "Co znajduje się na tym obrazie? Czy jest to zdjęcie osoby? Jaka jest jego jakość i czy wymaga poprawek?");
-    // console.log("Reply:", reply2);
+    policemanReply = await askGpt(systemMsg, simpleVisionReply);
+    console.log("Policeman 2:", policemanReply);
+    
+    robotReply = await processBadPhotos(policemanReply);
+    console.log("Robot:", robotReply);
 
-    // const images = await send_answer3("photos", "REPAIR IMG_1443.PNG");
-    // console.log("IMAGES:", images);
+    policemanReply = await askGpt(systemMsg, robotReply);
+    console.log("Policeman 3:", policemanReply);
+    portrait = findFirstPortraitImage(JSON.parse(policemanReply))
+    if (portrait !== undefined) {
+        portraits.push(portrait)
+    }
+    visionReply = await processPhotos(JSON.parse(policemanReply));
+    console.log("Vision:", visionReply);
 
-    // const reply1 = await askGpt(systemMsg, "IMG_1443.PNG: Zdjęcie przestawia wizerunek kobiety w okularach. Widać twarz. Zdjęcie jest dobrej jakości.");
-    // console.log("Reply:", reply1);
+    simpleVisionReply = await formatDescriptionOutput(visionReply);
+    console.log("Vision Simple:", simpleVisionReply);
+
+    policemanReply = await askGpt(systemMsg, simpleVisionReply);
+    console.log("Policeman 4:", policemanReply);
+    portrait = findFirstPortraitImage(JSON.parse(policemanReply))
+    if (portrait !== undefined) {
+        portraits.push(portrait)
+    }
+
+    if (portraits.length > 0) {
+        const portraitDescription = await askGptVisionByURL(portraits[0].filePath, "Jesteś policyjnym rysownikiem. Wykonań profesjonalny rysopis osoby na zdjęciu. Podaj znaki szczególne: długość i kolor włosów, kształt twarzy");
+        console.log("Rysopis:", portraitDescription.choices[0].message.content);
+        const result = await send_answer3("photos", portraitDescription.choices[0].message.content)
+        console.log("Result", result);
+    }
 }
 
 main().catch(console.error);

@@ -1,8 +1,6 @@
-import * as fs from 'fs';
 import OpenAI from 'openai';
 import type { ChatCompletionMessageParam } from "openai/resources/chat/completions";
 import { NodeHtmlMarkdown, NodeHtmlMarkdownOptions } from 'node-html-markdown'
-import * as path from 'path';
 import { send_answer3 } from "../modules/tasks";
 
 const openai = new OpenAI();
@@ -11,6 +9,7 @@ interface TaskQuestions {
     "01": string;
     "02": string;
     "03": string;
+    [key: string]: string;
 }
 
 async function getJson<T>(url: string): Promise<T> {
@@ -49,7 +48,7 @@ function checkPage(markdownPage: string, alredyViewedLink: string, question: str
 {
 	"_thinking": Wyjaśnienie twojej decyzji i procesu rozumowania,
 	"answer": Wyepełnij jeśli znasz odpowiedż,
-	"link": Podaj adres linku, który chcesz załadować,
+	"link": Podaj pełny adres linku, który chcesz załadować, np https://softo.ag3nts.org/omnie
 	"ready": true - jeśli znasz odpowiedź i wypełniłeś pole answer, false w przeciwnym wypadku
 }
 </response_format>
@@ -101,11 +100,10 @@ async function processQuestion(question: string, indexPage: string): Promise<str
     let gptAnswer;
     let gptAnswerAsJSON;
 
-    while (counter < 5 && !ready) {
+    while (counter < 10 && !ready) {
         counter++;
         console.log(`=== START Question: ${question}, iteration: ${counter} ===`);
-        // Here would be the logic to process questions and set ready flag
-        // For now we just increment counter
+        
         htmlPage = await downloadHtml(linkToVisit);
         mdPage = NodeHtmlMarkdown.translate(htmlPage);
         listOfViewedPages.push(linkToVisit);
@@ -133,8 +131,6 @@ async function processQuestion(question: string, indexPage: string): Promise<str
 }
 
 async function main() {
-    // It is horrible solution and have to be fixed, but I have spent too much time on this :/ 
-
     const url = process.env.CENTRALA_URL;
     const taskKey = process.env.TASKS_API_KEY;
 
@@ -142,21 +138,17 @@ async function main() {
         return Promise.reject(new Error('Environment variables are not set'));
     }
 
-    const questions = await requestTaskQuestions("https://centrala.ag3nts.org/data/" + taskKey + "/softo.json")
-
+    const questions = await requestTaskQuestions("https://centrala.ag3nts.org/data/" + taskKey + "/softo.json");
     console.log("Questions:", questions);
 
+    for (const key of Object.keys(questions)) {
+        const result = await processQuestion(questions[key], "https://softo.ag3nts.org");
+        console.log(`Question ${key}:`, result);
+        questions[key] = result;
+    }
 
-    const one = await processQuestion(questions['01'], "https://softo.ag3nts.org");
-    console.log("ONE:", one)
-
-    const two = await processQuestion(questions['02'], "https://softo.ag3nts.org");
-    console.log("TWO:", two)
-
-    const three = await processQuestion(questions['03'], "https://softo.ag3nts.org");
-    console.log("THREE:", three)
-
-    // await send_answer3("softo", "Heloł")
+    console.log("answers:", questions)
+    await send_answer3("softo", questions)
 }
 
 main().catch(console.error);

@@ -1,7 +1,5 @@
 import OpenAI from 'openai';
 import type { ChatCompletionMessageParam } from "openai/resources/chat/completions";
-import { NodeHtmlMarkdown, NodeHtmlMarkdownOptions } from 'node-html-markdown'
-import { send_answer3 } from "../modules/tasks";
 import express, { Request, Response } from 'express';
 
 const openai = new OpenAI();
@@ -63,6 +61,12 @@ A: {
 	"_thinking": "Dron polecnia dwa pola w dół i dwa do góry, czyli wrócił do miejsca początkowego. To jest punkt 0,0"
 	"description": "punkt startowy"
 }
+
+U: Polecimy wiem jak. W prawo i dopiero teraz w dół.
+A: {
+	"_thinking": "Dron poleciał jedno pole w prawo i jedno w dół. Pozycja 1,1"
+	"description": "wiatrak"
+}
 </examples>
     `
     return askGpt(systemMsg, question)
@@ -93,7 +97,6 @@ async function askGpt(systemMsg: string, question: string): Promise<string> {
 }
 
 
-// POST endpoint to handle drone instructions
 app.post('/', async (req: Request<{}, {}, DroneInstruction>, res: Response) => {
     const { instruction } = req.body;
     
@@ -108,15 +111,17 @@ app.post('/', async (req: Request<{}, {}, DroneInstruction>, res: Response) => {
 });
 
 // GET endpoint to return OK_RUNNING
-app.get('/', (req: Request, res: Response) => {
-    res.send('OK_RUNNING');
-});
+// app.get('/', (req: Request, res: Response) => {
+//     res.send('OK_RUNNING');
+// });
 
 async function main() {
     // Start the server
     app.listen(8080, () => {
         console.log('Server is running on http://localhost:8080');
     });
+
+    // ngrok http http://localhost:8080
 }
 
 main().catch(console.error);

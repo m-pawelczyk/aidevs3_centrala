@@ -9,7 +9,7 @@ async function main() {
         return Promise.reject(new Error('Environment variables are not set'));
     }
 
-    await send_answer3("webhook", questions)
+    await send_answer3("webhook", "https://2116-83-22-171-34.ngrok-free.app")
 }
 
 main().catch(console.error);

@@ -153,6 +153,88 @@ async function askGptVisionAboutLastPage(visionMessage: any[]) : Promise<OpenAI.
     }
 }
 
+
+interface TaskQuestions {
+    "01": string;
+    "02": string;
+    "03": string;
+    [key: string]: string;
+}
+
+async function getJson<T>(url: string): Promise<T> {
+    try {
+        const response = await fetch(url);
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        return await response.json() as T;
+    } catch (error) {
+        console.error('Error fetching data:', error);
+        throw error;
+    }
+}
+
+async function requestTaskQuestions(url: string): Promise<TaskQuestions> {
+    return await getJson<TaskQuestions>(url);
+}
+
+function answerQuestion(question: string, notes: string): Promise<string> {   
+    const systemMsg = `<context>
+    ${notes}
+</context>
+
+Twoim zadaniem jest pomóc odpowiedzieć użytkownikowi na pytania, ktore Ci przekazuje. To są zagadki, które użytkownik stara się rozwiązać uczestnicząc w internetowej grze. Większość informacji powinieneś znaleźć w dostarczonym kontekście (context). Wtedy użyj w pierwszej kolejności tych informacji, ale jeśli to konieczne skorzystaj ze swojej wiedzy. Uzwględnij wszystkie informacje podane w tekście, szczególnie odwołania do wydarzeń. Uwzględnij opisy miejsc, skorzystaj z nich by uzupełnić te notatki własna wiedza. Jeśli informacja się tam nie znajduje, postaraj się skorzystać ze swojej wiedzy. Postaraj się wywnioskować odpowiedzi na podstawie swojej wiedzy i notatek. 
+
+context zawiera skany notatek pochodzące z notatnika Rafała. Zostały pozyskane przy pomocy OCR i skanowani obrazków więc mogą być tam błędy jub nieścisłości. Weź to pod uwagę.
+
+Odpowiedz w formacie JSON:
+
+{
+	"_thinking": Tutaj wyjaśnij swoją odpowiedź. W jaki sposób doszedłeś do takiego rozwiązania,
+	"answer": Podaj zwięzłą odpowiedź zgodną z pytaniem użytkonika. Pytanie może zawwierać dodatkowe wymagania do formatu odpowiedzi. 
+}
+
+<examples>
+U: W jakim roku Rafał pojechał na wakacje?
+A: {
+	"_thinking": "W tekście nie ma konkretnej daty, ale jest informacja wyborach prezydenckich w Polsce, które miały miejsce w 2020 roku. Zapewne chodzi o rok 2020 i tak datę, podaję, ponieważ uzytkownik pyta o konkretna datę" 
+	"answer": "2020"
+},
+
+U: Kiedy Rafał widział sie z Ewa?
+A: {
+	"_thinking": "W tekście jest notatka, ze Rafał widzi się z Ewa jutro. Notatka ma datę 12 grudnia 2022. Z tego wynika, że chodzi o dzień następny. Jutro czyli muszę dodać jeden dzień do zapisanej daty. Wychodzi 13 grudnia 2022" 
+	"answer": "13 grudzień 2022"
+}
+</examples>
+    `
+    return askGpt(systemMsg, question)
+}
+
+function askGpt(systemMsg: string, question: string): Promise<string> {    
+    const messages: ChatCompletionMessageParam[] = [
+        {
+            role: "system",
+            content: systemMsg
+        },
+        {
+            role: "user",
+            content: question
+        }
+    ];
+    
+    return openai.chat.completions.create({
+        model: "gpt-4o",
+        messages: messages,
+        max_tokens: 16384,
+        response_format: { type: "json_object" }
+    }).then(completion => completion.choices[0].message.content || '')
+    .catch(error => {
+        console.error("Error in OpenAI completion:", error);
+        throw error;
+    });
+}
+
 async function main() {
     const url = process.env.CENTRALA_URL;
     const taskKey = process.env.TASKS_API_KEY;
@@ -178,17 +260,19 @@ async function main() {
 
     const rafalaNotes = await readOutput();
 
-    console.log(rafalaNotes, checkOutput())
 
+    const questions = await requestTaskQuestions("https://centrala.ag3nts.org/data/" + taskKey + "/notes.json");
+    console.log("Questions:", questions);
 
+    for (const key of Object.keys(questions)) {
+        const result = await answerQuestion(questions[key], rafalaNotes);
+        console.log(`Question ${key}:`, result);
+        questions[key] = JSON.parse(result).answer;
+    }
 
+    console.log("answers:", questions)
 
-
-
-
-
-
-    
+    await send_answer3("notes", questions)
 }
 
 main().catch(console.error);

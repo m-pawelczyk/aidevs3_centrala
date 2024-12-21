@@ -22,7 +22,8 @@
     "18": "bun 18_softo/18.ts",
     "19": "bun 19_webhook/19.ts",
     "19_server": "bun 19_webhook/19_server.ts",
-    "20": "bun 20_notes/20.ts"
+    "20": "bun 20_notes/20.ts",
+    "23": "bun 23_run/23.ts"
   },
   "devDependencies": {
     "bun-types": "latest",

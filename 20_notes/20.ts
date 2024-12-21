@@ -185,7 +185,9 @@ function answerQuestion(question: string, notes: string): Promise<string> {
 
 Twoim zadaniem jest pomóc odpowiedzieć użytkownikowi na pytania, ktore Ci przekazuje. To są zagadki, które użytkownik stara się rozwiązać uczestnicząc w internetowej grze. Większość informacji powinieneś znaleźć w dostarczonym kontekście (context). Wtedy użyj w pierwszej kolejności tych informacji, ale jeśli to konieczne skorzystaj ze swojej wiedzy. Uzwględnij wszystkie informacje podane w tekście, szczególnie odwołania do wydarzeń. Uwzględnij opisy miejsc, skorzystaj z nich by uzupełnić te notatki własna wiedza. Jeśli informacja się tam nie znajduje, postaraj się skorzystać ze swojej wiedzy. Postaraj się wywnioskować odpowiedzi na podstawie swojej wiedzy i notatek. 
 
-context zawiera skany notatek pochodzące z notatnika Rafała. Zostały pozyskane przy pomocy OCR i skanowani obrazków więc mogą być tam błędy jub nieścisłości. Weź to pod uwagę.
+context zawiera skany notatek pochodzące z notatnika Rafała. Zostały pozyskane przy pomocy OCR i skanowani obrazków więc mogą być tam błędy jub nieścisłości. Weź to pod uwagę. Straraj się skorzystać ze swojej wiedzy by poprawić nazwy miast, miejsce, nazwy własne. Te informacje moga być zniekształcone w kontekście ze względu na uzyta technikę skanowania. Twoim zadaniem jest się domyśleć prawidłowej nazwy, a nie poinformaować uzytkownika o błędzie skanowania. Zwracaj uwagę na wyrazenia "jutro" "wczoraj" i inne modyfikatory które zmieniaja daty w kontekście. Zawsze staraj się odpowiedać koknretnie podajac nazwę a nie opis, ktory mozna dopasować do bardzo wielu miejsc lub dat.
+
+"Chce zostać w schronieniu niedaleko miasta, w którym spędził ostatnie lata." - taka odpowiedz jest mało szczegółowa. Podaj nazwę miejsca. 
 
 Odpowiedz w formacie JSON:
 
@@ -207,6 +209,7 @@ A: {
 	"answer": "13 grudzień 2022"
 }
 </examples>
+
     `
     return askGpt(systemMsg, question)
 }

@@ -21,7 +21,8 @@
     "17": "bun 17_research/17.ts",
     "18": "bun 18_softo/18.ts",
     "19": "bun 19_webhook/19.ts",
-    "19_server": "bun 19_webhook/19_server.ts"
+    "19_server": "bun 19_webhook/19_server.ts",
+    "20": "bun 20_notes/20.ts"
   },
   "devDependencies": {
     "bun-types": "latest",
@@ -41,6 +42,8 @@
     "uuid": "^9.0.1",
     "groq-sdk": "^0.7.0",
     "@qdrant/js-client-rest": "^1.12.0",
-    "neo4j-driver": "5.26.0"
+    "neo4j-driver": "5.26.0",
+    "pdfjs-dist": "4.9.155",
+    "pdf2pic": "3.1.3"
   }
 }

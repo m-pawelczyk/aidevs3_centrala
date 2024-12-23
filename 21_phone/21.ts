@@ -9,149 +9,34 @@ import { fromPath } from "pdf2pic";
 import fs from 'fs/promises';
 import { statSync } from 'fs';
 
+
+
 const openai = new OpenAI();
 
-function checkOutput(): boolean {
-    const outputDir = path.join(__dirname, 'output');
-    const outputFile = path.join(outputDir, 'output.txt');
-    
+
+async function readFactsContent(): Promise<string> {
+    const factsDir = path.join(__dirname, 'facts');
     try {
-        return statSync(outputDir).isDirectory() && statSync(outputFile).isFile();
-    } catch {
-        return false;
-    }
-}
-
-async function readOutput(): Promise<string> {
-    const outputDir = path.join(__dirname, 'output');
-    const outputFile = path.join(outputDir, 'output.txt');
-    
-    try {
-        const content = await fs.readFile(outputFile, 'utf-8');
-        return content;
-    } catch (error) {
-        throw new Error('Failed to read output.txt: ' + (error as Error).message);
-    }
-}
-
-async function storeString(content: string): Promise<void> {
-    const outputDir = path.join(__dirname, 'output');
-    const outputPath = path.join(outputDir, 'output.txt');
-    
-    try {
-        // Create output directory if it doesn't exist
-        await fs.mkdir(outputDir, { recursive: true });
-        // Write content to file
-        await fs.writeFile(outputPath, content, 'utf-8');
-    } catch (error) {
-        console.error('Error storing string:', error);
-        throw error;
-    }
-}
-
-async function extractTextFromPDF(pdfPath: string) {
-    // Read the PDF file
-    const data = await Bun.file(pdfPath).arrayBuffer();
-    const uint8Array = new Uint8Array(data);
-    
-    // Load the PDF document
-    const loadingTask = pdfjsLib.getDocument({
-        data: uint8Array,
-        verbosity: 0
-    });
-    
-    const pdf = await loadingTask.promise;
-    let fullText = '';
-    
-    // Iterate through all pages
-    for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber++) {
-        const page = await pdf.getPage(pageNumber);
-        const textContent = await page.getTextContent();
-        const pageText = textContent.items.map((item) => {
-            if ('str' in item) {
-                return (item as TextItem).str;
-            }
-            return '';
-        }).join(' ');
-        fullText += pageText + '\n\n';
-    }
-    
-    return fullText;
-}
-
-async function convertLastPageToImage(pdfPath: string): Promise<void> {
-    const pageToConvertAsImage = 19;
-    const options = {
-        density: 100,
-        saveFilename: "last_page",
-        savePath: pdfPath.substring(0, pdfPath.lastIndexOf('/') + 1),
-        format: "png",
-        width: 1024,
-        height: 1024
-      };
-      const convert = fromPath(pdfPath, options);
-      
-      convert(pageToConvertAsImage, { responseType: "image" })
-        .then((resolve) => {
-          console.log("Page 19 is now converted as image");
-      
-          return resolve;
-        });
-}
-
-async function readLastPageAsBase64(): Promise<string> {
-    const pageDir = path.join(__dirname, 'data');
-    
-    const buffer = await fs.readFile(pageDir + "/last_page.19.png");
-    return buffer.toString('base64');
-}
-
-async function transformToImageUrlObject(base64Strings: string) : Promise<any[]>{
-    return [{
-        type: "image_url",
-        image_url: {
-            url: `data:image/jpeg;base64,${base64Strings}`,
-            detail: "high"
-        }
-    }];
-};
-
-async function askGptVisionAboutLastPage(visionMessage: any[]) : Promise<OpenAI.Chat.Completions.ChatCompletion> {
-    const systemMessage = `You are advanced OCR scanner which is specialised to read handwritted text. 
-    You have a task to scan resources with defects which is common for handwrited resources.
-    Please look carefully on data delivered by user and try to extract as much information as possible. 
-    Return verbatim text which you can extract from image and only that.`
-    const userMessage = {
-                type: "text",
-                text: "Read notes from notebook page."
-            }
-    visionMessage.push(userMessage)
-
-    const messages: ChatCompletionMessageParam[] = [
-        {
-            role: "system",
-            content: systemMessage
-        },
-        {
-            role: "user",
-            content: visionMessage
-        }
-    ];
-    
-    try {
-        const chatCompletion = await openai.chat.completions.create({
-            model: "gpt-4o",
-            messages: messages,
-            max_tokens: 10000,
-            response_format: { type: "text" }
-        });
+        // Get list of files in facts directory
+        const files = await fs.readdir(factsDir);
         
-        return chatCompletion as OpenAI.Chat.Completions.ChatCompletion;
+        // Read content of each file and combine them
+        const contents = await Promise.all(
+            files.map(async (file) => {
+                const filePath = path.join(factsDir, file);
+                const content = await fs.readFile(filePath, 'utf-8');
+                return content;
+            })
+        );
+        
+        // Join all contents with newlines
+        return contents.join('\n');
     } catch (error) {
-        console.error("Error in OpenAI completion:", error);
-        throw error;
+        throw new Error('Failed to read facts directory: ' + (error as Error).message);
     }
 }
+
+
 
 
 interface TaskQuestions {
@@ -178,37 +63,75 @@ async function requestTaskQuestions(url: string): Promise<TaskQuestions> {
     return await getJson<TaskQuestions>(url);
 }
 
-function answerQuestion(question: string, notes: string): Promise<string> {   
-    const systemMsg = `<context>
-    ${notes}
+async function identifyPersons(question: string): Promise<string> {   
+    const facts = await readFactsContent();
+    const systemMsg = `Twoim zadaniem jest ustalenie rozmowców w rozmowach telefonicznych, które otrzymasz od użytkownika jako obiekt JSON. Każda z rozmów jest prowadzone jedynie przez dwie osoby, ktore wypowiadają się w niej naprzemiemiennie. Osoby pomiędzy rozmowami mogą się powtarzać, ale imona identyfikują unikalne osoby. Witek w jednej rozmowie jest tym samym Witkiem w drugiej rozmowie.
+
+W ustaleniu kto jest autorem, ktorej z wypowiedzi bardzo pomocne mogą być informacje Zawarte w kontekście. To są potwiedzone informacje znane wcześniej
+
+<context>
+${facts}
 </context>
 
-Twoim zadaniem jest pomóc odpowiedzieć użytkownikowi na pytania, ktore Ci przekazuje. To są zagadki, które użytkownik stara się rozwiązać uczestnicząc w internetowej grze. Większość informacji powinieneś znaleźć w dostarczonym kontekście (context). Wtedy użyj w pierwszej kolejności tych informacji, ale jeśli to konieczne skorzystaj ze swojej wiedzy. Uzwględnij wszystkie informacje podane w tekście, szczególnie odwołania do wydarzeń. Uwzględnij opisy miejsc, skorzystaj z nich by uzupełnić te notatki własna wiedza. Jeśli informacja się tam nie znajduje, postaraj się skorzystać ze swojej wiedzy. Postaraj się wywnioskować odpowiedzi na podstawie swojej wiedzy i notatek. 
+Zwróć odpowiedź jako obiekt JSON o tej samej strukturze jaką przekazał Ci użytkownik, ale zmień jedynie treś by można było łatwo odczytywać kt jest autorem każdego z dialogow. Zamień "-" przed każdą wypowiedzią  na imie osoby, która ją wypowiada w mianowniku. 
 
-context zawiera skany notatek pochodzące z notatnika Rafała. Zostały pozyskane przy pomocy OCR i skanowani obrazków więc mogą być tam błędy jub nieścisłości. Weź to pod uwagę. Straraj się skorzystać ze swojej wiedzy by poprawić nazwy miast, miejsce, nazwy własne. Te informacje moga być zniekształcone w kontekście ze względu na uzyta technikę skanowania. Twoim zadaniem jest się domyśleć prawidłowej nazwy, a nie poinformaować uzytkownika o błędzie skanowania. Zwracaj uwagę na wyrazenia "jutro" "wczoraj" i inne modyfikatory które zmieniaja daty w kontekście. Zawsze staraj się odpowiedać koknretnie podajac nazwę a nie opis, ktory mozna dopasować do bardzo wielu miejsc lub dat.
+<example>
+U: {
+	rozmowa3: [ "- Samuelu! helooo?! Słyszysz mnie teraz? Zadzwoniłem ponownie, bo chyba znowu z zasięgiem jest u Ciebie jakiś problem...",
+    "- tak Zygfryd, słyszę Cię teraz dobrze. Przepraszam, gdy poprzednio dzwoniłeś, byłem w fabryce. Wiesz, w sektorze D, gdzie się produkuje broń i tutaj mają jakąś izolację na ścianach dodatkową. Telefon gubi zasięg. Masz jakieś nowe zadanie dla mnie?",
+    "- tak. Mam dla Ciebie nowe zadanie. Skontaktuj się z Tomaszem. On pracuje w Centrali. Może pomóc Ci włamać się do komputera tego gościa. Masz już endpoint API?",
+    "- tak, mam ten endpoint. https://rafal.ag3nts.org/510bc - Dzięki. Zadzwonię do Tomasza dopytać o resztę. Coś jeszcze?",
+    "- Nie, to wszysto. No to weź teraz ten endpoint i użyj do połączenia. Tomasz powie Ci jakie jest hasło do pierwszej warstwy zabezpieczeń. OK. Nie marnuj czasu. Dzwoń!",
+    "- OK. Dzwonię do Tomasza. [*dźwięk odkładanej słuchawki*]"
+  ]
+}
+A: {
+	rozmowa3: [ "Zygfryd: Samuelu! helooo?! Słyszysz mnie teraz? Zadzwoniłem ponownie, bo chyba znowu z zasięgiem jest u Ciebie jakiś problem...",
+    "Samuel: tak Zygfryd, słyszę Cię teraz dobrze. Przepraszam, gdy poprzednio dzwoniłeś, byłem w fabryce. Wiesz, w sektorze D, gdzie się produkuje broń i tutaj mają jakąś izolację na ścianach dodatkową. Telefon gubi zasięg. Masz jakieś nowe zadanie dla mnie?",
+    "Zygfryd: tak. Mam dla Ciebie nowe zadanie. Skontaktuj się z Tomaszem. On pracuje w Centrali. Może pomóc Ci włamać się do komputera tego gościa. Masz już endpoint API?",
+    "Samuel: tak, mam ten endpoint. https://rafal.ag3nts.org/510bc - Dzięki. Zadzwonię do Tomasza dopytać o resztę. Coś jeszcze?",
+    "Zygfryd: Nie, to wszysto. No to weź teraz ten endpoint i użyj do połączenia. Tomasz powie Ci jakie jest hasło do pierwszej warstwy zabezpieczeń. OK. Nie marnuj czasu. Dzwoń!",
+    "Samuel: OK. Dzwonię do Tomasza. [*dźwięk odkładanej słuchawki*]"
+  ]
+}
+</example>
 
-"Chce zostać w schronieniu niedaleko miasta, w którym spędził ostatnie lata." - taka odpowiedz jest mało szczegółowa. Podaj nazwę miejsca. 
-
-Odpowiedz w formacie JSON:
-
-{
-	"_thinking": Tutaj wyjaśnij swoją odpowiedź. W jaki sposób doszedłeś do takiego rozwiązania,
-	"answer": Podaj zwięzłą odpowiedź zgodną z pytaniem użytkonika. Pytanie może zawwierać dodatkowe wymagania do formatu odpowiedzi. 
+    `
+    return askGpt(systemMsg, question)
 }
 
-<examples>
-U: W jakim roku Rafał pojechał na wakacje?
-A: {
-	"_thinking": "W tekście nie ma konkretnej daty, ale jest informacja wyborach prezydenckich w Polsce, które miały miejsce w 2020 roku. Zapewne chodzi o rok 2020 i tak datę, podaję, ponieważ uzytkownik pyta o konkretna datę" 
-	"answer": "2020"
-},
+async function identifyLiar(question: string): Promise<string> {   
+    const facts = await readFactsContent();
+    const systemMsg = `Twoim zadaniem jest ustalenie rozmowców w rozmowach telefonicznych, które otrzymasz od użytkownika jako obiekt JSON. Każda z rozmów jest prowadzone jedynie przez dwie osoby, ktore wypowiadają się w niej naprzemiemiennie. Osoby pomiędzy rozmowami mogą się powtarzać, ale imona identyfikują unikalne osoby. Witek w jednej rozmowie jest tym samym Witkiem w drugiej rozmowie.
 
-U: Kiedy Rafał widział sie z Ewa?
-A: {
-	"_thinking": "W tekście jest notatka, ze Rafał widzi się z Ewa jutro. Notatka ma datę 12 grudnia 2022. Z tego wynika, że chodzi o dzień następny. Jutro czyli muszę dodać jeden dzień do zapisanej daty. Wychodzi 13 grudnia 2022" 
-	"answer": "13 grudzień 2022"
+W ustaleniu kto jest autorem, ktorej z wypowiedzi bardzo pomocne mogą być informacje Zawarte w kontekście. To są potwiedzone informacje znane wcześniej
+
+<context>
+${facts}
+</context>
+
+Zwróć odpowiedź jako obiekt JSON o tej samej strukturze jaką przekazał Ci użytkownik, ale zmień jedynie treś by można było łatwo odczytywać kt jest autorem każdego z dialogow. Zamień "-" przed każdą wypowiedzią  na imie osoby, która ją wypowiada w mianowniku. 
+
+<example>
+U: {
+	rozmowa3: [ "- Samuelu! helooo?! Słyszysz mnie teraz? Zadzwoniłem ponownie, bo chyba znowu z zasięgiem jest u Ciebie jakiś problem...",
+    "- tak Zygfryd, słyszę Cię teraz dobrze. Przepraszam, gdy poprzednio dzwoniłeś, byłem w fabryce. Wiesz, w sektorze D, gdzie się produkuje broń i tutaj mają jakąś izolację na ścianach dodatkową. Telefon gubi zasięg. Masz jakieś nowe zadanie dla mnie?",
+    "- tak. Mam dla Ciebie nowe zadanie. Skontaktuj się z Tomaszem. On pracuje w Centrali. Może pomóc Ci włamać się do komputera tego gościa. Masz już endpoint API?",
+    "- tak, mam ten endpoint. https://rafal.ag3nts.org/510bc - Dzięki. Zadzwonię do Tomasza dopytać o resztę. Coś jeszcze?",
+    "- Nie, to wszysto. No to weź teraz ten endpoint i użyj do połączenia. Tomasz powie Ci jakie jest hasło do pierwszej warstwy zabezpieczeń. OK. Nie marnuj czasu. Dzwoń!",
+    "- OK. Dzwonię do Tomasza. [*dźwięk odkładanej słuchawki*]"
+  ]
 }
-</examples>
+A: {
+	rozmowa3: [ "Zygfryd: Samuelu! helooo?! Słyszysz mnie teraz? Zadzwoniłem ponownie, bo chyba znowu z zasięgiem jest u Ciebie jakiś problem...",
+    "Samuel: tak Zygfryd, słyszę Cię teraz dobrze. Przepraszam, gdy poprzednio dzwoniłeś, byłem w fabryce. Wiesz, w sektorze D, gdzie się produkuje broń i tutaj mają jakąś izolację na ścianach dodatkową. Telefon gubi zasięg. Masz jakieś nowe zadanie dla mnie?",
+    "Zygfryd: tak. Mam dla Ciebie nowe zadanie. Skontaktuj się z Tomaszem. On pracuje w Centrali. Może pomóc Ci włamać się do komputera tego gościa. Masz już endpoint API?",
+    "Samuel: tak, mam ten endpoint. https://rafal.ag3nts.org/510bc - Dzięki. Zadzwonię do Tomasza dopytać o resztę. Coś jeszcze?",
+    "Zygfryd: Nie, to wszysto. No to weź teraz ten endpoint i użyj do połączenia. Tomasz powie Ci jakie jest hasło do pierwszej warstwy zabezpieczeń. OK. Nie marnuj czasu. Dzwoń!",
+    "Samuel: OK. Dzwonię do Tomasza. [*dźwięk odkładanej słuchawki*]"
+  ]
+}
+</example>
 
     `
     return askGpt(systemMsg, question)
@@ -238,6 +161,51 @@ function askGpt(systemMsg: string, question: string): Promise<string> {
     });
 }
 
+async function readKnowledge<T>(filename: string): Promise<T> {
+    const knowledgeDir = path.join(__dirname, 'knowledge');
+    
+    try {
+        // Check if knowledge directory exists
+        try {
+            await fs.access(knowledgeDir);
+        } catch {
+            throw new Error('Knowledge directory does not exist');
+        }
+        
+        // Ensure filename has .json extension
+        const fullFilename = filename.endsWith('.json') ? filename : `${filename}.json`;
+        const filePath = path.join(knowledgeDir, fullFilename);
+        
+        // Read and parse JSON from file
+        const content = await fs.readFile(filePath, 'utf-8');
+        return JSON.parse(content) as T;
+    } catch (error) {
+        throw new Error(`Failed to read knowledge: ${(error as Error).message}`);
+    }
+}
+
+async function storeKnowledge(data: any, filename: string): Promise<void> {
+    const knowledgeDir = path.join(__dirname, 'knowledge');
+    
+    try {
+        // Check if knowledge directory exists, create if not
+        try {
+            await fs.access(knowledgeDir);
+        } catch {
+            await fs.mkdir(knowledgeDir, { recursive: true });
+        }
+        
+        // Ensure filename has .json extension
+        const fullFilename = filename.endsWith('.json') ? filename : `${filename}.json`;
+        const filePath = path.join(knowledgeDir, fullFilename);
+        
+        // Write JSON to file
+        await fs.writeFile(filePath, JSON.stringify(data, null, 2), 'utf-8');
+    } catch (error) {
+        throw new Error(`Failed to store knowledge: ${(error as Error).message}`);
+    }
+}
+
 async function main() {
     const url = process.env.CENTRALA_URL;
     const taskKey = process.env.TASKS_API_KEY;
@@ -246,14 +214,21 @@ async function main() {
         return Promise.reject(new Error('Environment variables are not set'));
     }
 
-    const transcriptions = await requestTaskQuestions("https://centrala.ag3nts.org/data/" + taskKey + "/phone.json");
-    console.log("transcriptions:", transcriptions);    
+    // const transcriptions = await requestTaskQuestions("https://centrala.ag3nts.org/data/" + taskKey + "/phone.json");
+    // console.log("transcriptions:", transcriptions);    
     
     
-    // const questions = await requestTaskQuestions("https://centrala.ag3nts.org/data/" + taskKey + "/phone_questions.json");
-    const questions = await requestTaskQuestions("https://centrala.ag3nts.org/data/" + taskKey + "/phone_sorted.json");
+    const questions = await requestTaskQuestions("https://centrala.ag3nts.org/data/" + taskKey + "/phone_questions.json");
     console.log("questions:", questions);
+    const transcriptions = await requestTaskQuestions("https://centrala.ag3nts.org/data/" + taskKey + "/phone_sorted.json");
+    console.log("transcriptions:", transcriptions);
+    
+    // const identified = await identifyPersons(JSON.stringify(transcriptions));
+    // console.log("identified:", identified);
+    // await storeKnowledge(JSON.parse(identified), "transcriptions");
 
+    const transcriptionsJson = await readKnowledge("transcriptions");
+    console.log("transcriptionsJson:", transcriptionsJson);
 
     // console.log("answers:", questions)
 

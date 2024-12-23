@@ -102,37 +102,36 @@ A: {
 
 async function identifyLiar(question: string): Promise<string> {   
     const facts = await readFactsContent();
-    const systemMsg = `Twoim zadaniem jest ustalenie rozmowców w rozmowach telefonicznych, które otrzymasz od użytkownika jako obiekt JSON. Każda z rozmów jest prowadzone jedynie przez dwie osoby, ktore wypowiadają się w niej naprzemiemiennie. Osoby pomiędzy rozmowami mogą się powtarzać, ale imona identyfikują unikalne osoby. Witek w jednej rozmowie jest tym samym Witkiem w drugiej rozmowie.
+    const systemMsg = `Twoim zadaniem jest przeanalizowanie rozmów telefonicznych, które otrzymasz od użytkownika jako obiekt JSON. Jedna z tych osob kłamie. Musisz wskazać, która.
 
-W ustaleniu kto jest autorem, ktorej z wypowiedzi bardzo pomocne mogą być informacje Zawarte w kontekście. To są potwiedzone informacje znane wcześniej
+Zastanow się i myśl głośno. Użytkonik Cię nie słyszy w tej chwili.
+
+W ustaleniu kto jest kłamcą, bardzo pomocne mogą być informacje zawarte w kontekście. To są potwiedzone informacje znane wcześniej.
 
 <context>
 ${facts}
 </context>
 
-Zwróć odpowiedź jako obiekt JSON o tej samej strukturze jaką przekazał Ci użytkownik, ale zmień jedynie treś by można było łatwo odczytywać kt jest autorem każdego z dialogow. Zamień "-" przed każdą wypowiedzią  na imie osoby, która ją wypowiada w mianowniku. 
+Zwróć odpowiedź jako obiekt JSON.
+
+<response_structure>
+{
+	"_thinking": Wyjaśnij swoją decyzję i sposob rozumowania. To jest bardzo ważne by zneleźć kłamcę, ale nie możemy się tutaj pomylić.
+	"name": Podaj imię kłamcy i nic więcej. 
+}
+</response_structure>
 
 <example>
 U: {
-	rozmowa3: [ "- Samuelu! helooo?! Słyszysz mnie teraz? Zadzwoniłem ponownie, bo chyba znowu z zasięgiem jest u Ciebie jakiś problem...",
-    "- tak Zygfryd, słyszę Cię teraz dobrze. Przepraszam, gdy poprzednio dzwoniłeś, byłem w fabryce. Wiesz, w sektorze D, gdzie się produkuje broń i tutaj mają jakąś izolację na ścianach dodatkową. Telefon gubi zasięg. Masz jakieś nowe zadanie dla mnie?",
-    "- tak. Mam dla Ciebie nowe zadanie. Skontaktuj się z Tomaszem. On pracuje w Centrali. Może pomóc Ci włamać się do komputera tego gościa. Masz już endpoint API?",
-    "- tak, mam ten endpoint. https://rafal.ag3nts.org/510bc - Dzięki. Zadzwonię do Tomasza dopytać o resztę. Coś jeszcze?",
-    "- Nie, to wszysto. No to weź teraz ten endpoint i użyj do połączenia. Tomasz powie Ci jakie jest hasło do pierwszej warstwy zabezpieczeń. OK. Nie marnuj czasu. Dzwoń!",
-    "- OK. Dzwonię do Tomasza. [*dźwięk odkładanej słuchawki*]"
+	rozmowa3: [ "Alek: Byłem wczoraj w sektorze C",
+    "Zenon: O, to bardzo ciekawe. Co oni tam budują"
   ]
 }
 A: {
-	rozmowa3: [ "Zygfryd: Samuelu! helooo?! Słyszysz mnie teraz? Zadzwoniłem ponownie, bo chyba znowu z zasięgiem jest u Ciebie jakiś problem...",
-    "Samuel: tak Zygfryd, słyszę Cię teraz dobrze. Przepraszam, gdy poprzednio dzwoniłeś, byłem w fabryce. Wiesz, w sektorze D, gdzie się produkuje broń i tutaj mają jakąś izolację na ścianach dodatkową. Telefon gubi zasięg. Masz jakieś nowe zadanie dla mnie?",
-    "Zygfryd: tak. Mam dla Ciebie nowe zadanie. Skontaktuj się z Tomaszem. On pracuje w Centrali. Może pomóc Ci włamać się do komputera tego gościa. Masz już endpoint API?",
-    "Samuel: tak, mam ten endpoint. https://rafal.ag3nts.org/510bc - Dzięki. Zadzwonię do Tomasza dopytać o resztę. Coś jeszcze?",
-    "Zygfryd: Nie, to wszysto. No to weź teraz ten endpoint i użyj do połączenia. Tomasz powie Ci jakie jest hasło do pierwszej warstwy zabezpieczeń. OK. Nie marnuj czasu. Dzwoń!",
-    "Samuel: OK. Dzwonię do Tomasza. [*dźwięk odkładanej słuchawki*]"
-  ]
+	"_thinking": "Alek kłamie. W faktach znalazłem, że nigdy nie byl w fabryce, więc nie mógł odwiedzić sektora C" 
+	"name": "Alek"
 }
 </example>
-
     `
     return askGpt(systemMsg, question)
 }
@@ -153,6 +152,57 @@ function askGpt(systemMsg: string, question: string): Promise<string> {
         model: "gpt-4o",
         messages: messages,
         max_tokens: 16384,
+        response_format: { type: "json_object" }
+    }).then(completion => completion.choices[0].message.content || '')
+    .catch(error => {
+        console.error("Error in OpenAI completion:", error);
+        throw error;
+    });
+}
+
+async function verifyAnswerCorrect(aidevAPIResponse: any): Promise<string> {   
+    if(aidevAPIResponse !== 0) {
+        const systemMsg = `Twoim zadaniem jes pobranie z wiadomości uzytkonika numeru błędnej odpowiedzi i nic więcej. 
+
+Zwróć odpowiedź jako obiekt JSON.
+
+<response_structure>
+{
+	"number": Tu podaj liczbę wyjęt z wiadomości uwytkownika w tym samym formacie jakim ja przekazał. 
+}
+</response_structure>
+
+<example>
+U: "Answer for question 09 is incorrect"
+A: {
+	"number": "09"
+}
+</example>
+    `
+        return askGptMini(systemMsg, aidevAPIResponse.message)
+    } else {
+        return JSON.stringify({
+            "number": "" 
+        });
+    }    
+}
+
+function askGptMini(systemMsg: string, question: string): Promise<string> {    
+    const messages: ChatCompletionMessageParam[] = [
+        {
+            role: "system",
+            content: systemMsg
+        },
+        {
+            role: "user",
+            content: question
+        }
+    ];
+    
+    return openai.chat.completions.create({
+        model: "gpt-4o-mini",
+        messages: messages,
+        max_tokens: 1000,
         response_format: { type: "json_object" }
     }).then(completion => completion.choices[0].message.content || '')
     .catch(error => {
@@ -206,6 +256,21 @@ async function storeKnowledge(data: any, filename: string): Promise<void> {
     }
 }
 
+function agentInitState(questions: any, transcriptions: any): any {
+    return {
+        "questions": questions,
+        "transcriptions": transcriptions,
+        "finalAnswers": {
+            "01": "FAILED",
+            "02": "FAILED",
+            "03": "FAILED",
+            "04": "FAILED",
+            "05": "FAILED",
+            "06": "FAILED",
+          }
+    };
+}
+
 async function main() {
     const url = process.env.CENTRALA_URL;
     const taskKey = process.env.TASKS_API_KEY;
@@ -230,9 +295,18 @@ async function main() {
     const transcriptionsJson = await readKnowledge("transcriptions");
     console.log("transcriptionsJson:", transcriptionsJson);
 
-    // console.log("answers:", questions)
 
-    // await send_answer3("notes", questions)
+    // const liar = await identifyLiar(JSON.stringify(transcriptionsJson));
+    // console.log("liar:", liar);
+    // await storeKnowledge(JSON.parse(liar), "liar");
+
+
+    // const answer = await send_answer3("phone", questions)
+
+    // const wrong = await verifyAnswerCorrect(answer);
+    // console.log("wrong:", wrong);
+
+    console.log("state:", agentInitState(questions, transcriptionsJson));
 }
 
 main().catch(console.error);

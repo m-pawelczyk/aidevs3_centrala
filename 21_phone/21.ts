@@ -273,6 +273,14 @@ function agentInitState(questions: any, transcriptions: any): any {
         "hints": [],
         "notCorrectAnwers": [],
         "currentQuestion": "", 
+        "stateAnswers": {
+            "01": "FAILED",
+            "02": "FAILED",
+            "03": "FAILED",
+            "04": "FAILED",
+            "05": "FAILED",
+            "06": "FAILED",
+        },
         "finalAnswers": {
             "01": "FAILED",
             "02": "FAILED",
@@ -286,7 +294,48 @@ function agentInitState(questions: any, transcriptions: any): any {
 
 function buildSystemMessageForResolvingQuestions(state: any): string {
 
-    return ""
+    return `Twoim zadaniem jest odpowiedzieć pytanie użytkownika na podstawie wiedzy, którą masz posiadasz w dostarczonym kontekście.
+
+W kontekście otrzymasz:
+- transkrypcje rozmów z kilku rozmów telefonicznych -> transkrypcje
+- imię kłamcy, którego wypowiedzi w tych rozmowach nie są zgodne z prawdą. Uważaj na to co mówi -> kłamca
+- prawidłowe odpowiedzi na wcześniejsze pytania użytkownika -> zaliczone
+- podpowiedzi systemu weryfinacyjnego jeśli poprzednia odpowiedź była nieprawidłowa -> wskazówki
+- listę nieprawidłowych odpowiedzi, które nie zostały uznane przez system weryfikacyjny -> zakazane
+
+Jeśli, któras sekcja jest pusta to nie mamy jeszcze odpowiedzi
+
+Zwróć odpowiedź jako obiekt JSON.
+
+<response_structure>
+{
+	"_thinking": Wyjaśnij swoją decyzję i sposób rozumowania. Wyjaśnij swoją ospowiedź na pytanie.
+	"answer": Podaj krótką odpowiedź na pytanie użytkownika
+}
+</response_structure>
+
+<context>
+**transkrypcje**
+
+${state['transcriptions']}
+
+**kłamca**
+
+Samuel
+
+**zaliczone**
+
+
+
+**wskazówki**
+
+
+
+**zakazane**
+
+
+</context>
+    `
 }
 
 function buildSystemMessageForChoosingTool(): string {
@@ -309,7 +358,7 @@ Zwróć odpowiedź jako obiekt JSON.
 }
 
 async function processFailedAnswers(state: any) {
-    const { questions, transcriptions, finalAnswers} = state;
+    const { questions, transcriptions, finalAnswers, stateAnswers} = state;
     
     for (const [questionId, status] of Object.entries(state['finalAnswers'])) {
         if (status === "FAILED") {
@@ -331,16 +380,14 @@ async function processFailedAnswers(state: any) {
                     console.log(`TOOL (attempt ${attempts + 1}/5):`);
                     
                     // Create an object with 6 values as required by the API
-                    const answer = {
-                        value1: "test1",
-                        value2: "test2",
-                        value3: "test3",
-                        value4: "test4",
-                        value5: "test5",
-                        value6: "test6"
-                    };
+    
+                    const agentAnswer = await askGpt(buildSystemMessageForResolvingQuestions(state), questions[questionId]);
+
+                    const tryAnswer = JSON.parse(agentAnswer).answer
+
+                    stateAnswers[questionId] = tryAnswer
                     
-                    response = await send_answer3("phone", answer) as ApiResponse;
+                    response = await send_answer3("phone", stateAnswers) as ApiResponse;
 
                     attempts++;
                     

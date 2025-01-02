@@ -7,7 +7,7 @@ import * as pdfjsLib from 'pdfjs-dist'
 import { TextItem, TextMarkedContent } from 'pdfjs-dist/types/src/display/api';
 import { fromPath } from "pdf2pic";
 import fs from 'fs/promises';
-import { statSync } from 'fs';
+import { statSync, existsSync } from 'fs';
 
 
 
@@ -49,10 +49,14 @@ interface TaskQuestions {
 async function getJson<T>(url: string): Promise<T> {
     try {
         const response = await fetch(url);
+        if (!('ok' in response)) {
+            throw new Error('Invalid response object');
+        }
         if (!response.ok) {
             throw new Error(`HTTP error! status: ${response.status}`);
         }
-        return await response.json() as T;
+        const data = await response.json();
+        return data as T;
     } catch (error) {
         console.error('Error fetching data:', error);
         throw error;
@@ -256,10 +260,19 @@ async function storeKnowledge(data: any, filename: string): Promise<void> {
     }
 }
 
+function checkFileExists(filename: string): boolean {
+    const knowledgeDir = path.join(__dirname, 'knowledge');
+    const filePath = path.join(knowledgeDir, filename);
+    return existsSync(filePath);
+}
+
 function agentInitState(questions: any, transcriptions: any): any {
     return {
         "questions": questions,
         "transcriptions": transcriptions,
+        "hints": [],
+        "notCorrectAnwers": [],
+        "currentQuestion": "", 
         "finalAnswers": {
             "01": "FAILED",
             "02": "FAILED",
@@ -269,6 +282,57 @@ function agentInitState(questions: any, transcriptions: any): any {
             "06": "FAILED",
           }
     };
+}
+
+function buildSystemMessageForResolvingQuestions(state: any): string {
+
+    return ""
+}
+
+function buildSystemMessageForChoosingTool(): string {
+
+    return `Twoim zadaniem jest przeanalizowanie pytania użytkonika i wybranie jednego z dwóch narzędzi, które umożliwi wykonanie zadania.
+
+Dostępne narzędzia:
+general - to narzędzie odpowiada na pytania użytkownika na podstawie wiedzy LLM lub dostarczonego kontektu.
+curl - to narzędzie wykonuje żądanie do endpointu API na podstawie dostarczonych w kontekście informacji.
+
+Zwróć odpowiedź jako obiekt JSON.
+
+<response_structure>
+{
+	"_thinking": Wyjaśnij swoją decyzję i sposob rozumowania. Odpowiedz dlaczego wybrałeś dane narzędzie
+	"tool": Podaj Nazwę narzędzia i nic więcej i nic więcej. 
+}
+</response_structure>
+    `
+}
+
+async function processFailedAnswers(state: any) {
+    const { questions, transcriptions, finalAnswers} = state;
+    
+    for (const [questionId, status] of Object.entries(state['finalAnswers'])) {
+        if (status === "FAILED") {
+            try {
+                state['currentQuestion'] = questionId
+                const toolAnswer = await askGpt(buildSystemMessageForChoosingTool(), questions[questionId]);
+
+                console.log("TOOL:", JSON.parse(toolAnswer).tool)
+
+                // const response = await send_answer3("phone", "dziobak");
+                
+                // if (response === 0) {
+                //     finalAnswers[questionId] = "SUCCESS";
+                //     console.log(`Question ${questionId} processed successfully`);
+                // } else {
+                //     console.log(`Question ${questionId} failed:`, response.message);
+                // }
+            } catch (error) {
+                console.error(`Error processing question ${questionId}:`, error);
+            }
+        }
+    }
+    return state;
 }
 
 async function main() {
@@ -306,7 +370,14 @@ async function main() {
     // const wrong = await verifyAnswerCorrect(answer);
     // console.log("wrong:", wrong);
 
-    console.log("state:", agentInitState(questions, transcriptionsJson));
+    const state = agentInitState(questions, transcriptionsJson);
+    console.log("Initial state:", state);
+    
+    const updatedState = await processFailedAnswers(state);
+    console.log("Final state:", updatedState);
+
+
+    // console.log(await readKnowledge("liar"))
 }
 
 main().catch(console.error);

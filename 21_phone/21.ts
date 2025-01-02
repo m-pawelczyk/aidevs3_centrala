@@ -314,21 +314,52 @@ async function processFailedAnswers(state: any) {
     for (const [questionId, status] of Object.entries(state['finalAnswers'])) {
         if (status === "FAILED") {
             try {
-                state['currentQuestion'] = questionId
-                const toolAnswer = await askGpt(buildSystemMessageForChoosingTool(), questions[questionId]);
+                state['currentQuestion'] = questionId;
+                let attempts = 0;
+                interface ApiResponse {
+                    code: number;
+                    message: string;
+                }
 
-                console.log("TOOL:", JSON.parse(toolAnswer).tool)
-
-                // const response = await send_answer3("phone", "dziobak");
+                let response: ApiResponse = {
+                    code: -1,
+                    message: "Not attempted"
+                };
                 
-                // if (response === 0) {
-                //     finalAnswers[questionId] = "SUCCESS";
-                //     console.log(`Question ${questionId} processed successfully`);
-                // } else {
-                //     console.log(`Question ${questionId} failed:`, response.message);
-                // }
+                while (attempts < 5) {
+                    const toolAnswer = await askGpt(buildSystemMessageForChoosingTool(), questions[questionId]);
+                    console.log(`TOOL (attempt ${attempts + 1}/5):`);
+                    
+                    // Create an object with 6 values as required by the API
+                    const answer = {
+                        value1: "test1",
+                        value2: "test2",
+                        value3: "test3",
+                        value4: "test4",
+                        value5: "test5",
+                        value6: "test6"
+                    };
+                    
+                    response = await send_answer3("phone", answer) as ApiResponse;
+
+                    attempts++;
+                    
+                    if (response.code === 0) {
+                        finalAnswers[questionId] = "SUCCESS";
+                        console.log(`Question ${questionId} processed successfully on attempt ${attempts}`);
+                        break;
+                    } else {
+                        console.log(`Question ${questionId} failed attempt ${attempts}:`, response.message);
+                    }
+                }
+                
+                if (response.code !== 0) {
+                    console.log(`Question ${questionId} failed after 5 attempts, stopping further processing`);
+                    return state;
+                }
             } catch (error) {
                 console.error(`Error processing question ${questionId}:`, error);
+                return state;
             }
         }
     }
@@ -370,10 +401,13 @@ async function main() {
     // const wrong = await verifyAnswerCorrect(answer);
     // console.log("wrong:", wrong);
 
-    const state = agentInitState(questions, transcriptionsJson);
-    console.log("Initial state:", state);
+    const state = checkFileExists('agent_state.json')
+        ? await readKnowledge("agent_state")
+        : agentInitState(questions, transcriptionsJson);
+    console.log("State:", state);
     
     const updatedState = await processFailedAnswers(state);
+    await storeKnowledge(updatedState, "agent_state");
     console.log("Final state:", updatedState);
 
 
